@@ -1,0 +1,339 @@
+/* Layout */
+.app {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.map-section {
+  flex: 7;
+  position: relative;
+  height: 100%;
+}
+
+.insights-section {
+  flex: 3;
+  height: 100%;
+  min-width: 360px;
+  max-width: 480px;
+  overflow: hidden;
+  border-left: 2px solid #e5e7eb;
+}
+
+/* Layer Controls */
+.layer-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.layer-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.layer-btn:hover {
+  background: #f3f4f6;
+}
+
+.layer-btn.active {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.layer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  flex-shrink: 0;
+}
+
+/* Map Legend */
+.map-legend {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.legend-swatch {
+  width: 14px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.legend-line {
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.legend-line.dashed {
+  background: repeating-linear-gradient(
+    90deg,
+    currentColor 0,
+    currentColor 4px,
+    transparent 4px,
+    transparent 7px
+  ) !important;
+  height: 3px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Insights Panel */
+.insights-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fafafa;
+}
+
+.insights-header {
+  padding: 16px 20px;
+  background: #1e293b;
+  color: white;
+  flex-shrink: 0;
+}
+
+.insights-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.fire-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.insights-title h1 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.fire-meta {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.wind-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.wind-badge svg {
+  color: #93c5fd;
+}
+
+/* Scroll area */
+.insights-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.insights-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.insights-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.insights-scroll::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.insights-group {
+  padding-bottom: 4px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 14px 20px 8px;
+  margin: 0;
+}
+
+.section-icon {
+  font-size: 14px;
+}
+
+/* Insight Cards */
+.insights-list {
+  padding: 0 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.insight-card {
+  border-left: 3px solid;
+  padding: 10px 12px;
+  border-radius: 0 6px 6px 0;
+  position: relative;
+}
+
+.insight-card p {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #374151;
+  margin: 0;
+}
+
+.insight-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+  float: left;
+  margin-right: 8px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.insight-card.compact {
+  padding: 8px 12px;
+}
+
+.category-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  margin-bottom: 3px;
+}
+
+/* Loading */
+.loading-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Footer */
+.insights-footer {
+  padding: 10px 20px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: #9ca3af;
+  flex-shrink: 0;
+  background: #f9fafb;
+}
+
+.footer-note {
+  font-style: italic;
+}
+
+/* Leaflet overrides */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: inherit;
+}
+
+.leaflet-popup-content {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 10px 14px;
+}
+
+.leaflet-popup-content strong {
+  font-size: 13px;
+}
+
+.community-marker,
+.community-label,
+.water-marker {
+  background: none !important;
+  border: none !important;
+}
