@@ -1,0 +1,21 @@
+fire_name,fuel_type,wind_speed,humidity,slope,containment_failure,acres_burned
+Cedar Creek,grass,45,12,1,1,12649
+Pine Ridge,chaparral,22,20,14,0,335
+Elk Mountain,timber,11,48,34,0,228
+Bear Valley,brush,42,32,2,0,111
+Hawk Peak,mixed_conifer,10,18,14,0,1084
+Canyon Bluff,grass,43,6,35,1,3757
+Silver Lake,chaparral,39,31,14,0,969
+Iron Ridge,timber,42,22,0,0,1604
+Copper Basin,brush,15,49,27,0,746
+Eagle Nest,mixed_conifer,22,14,13,0,1613
+Storm King,grass,26,11,5,1,6724
+Granite Falls,chaparral,11,27,22,0,1286
+Shadow Creek,timber,21,56,2,0,1544
+Dusty Mesa,brush,34,39,7,0,1938
+Timber Gulch,mixed_conifer,29,10,35,1,5303
+Red Rock,grass,45,44,23,0,1232
+Blue Ridge,chaparral,17,50,4,0,143
+Wind River,timber,19,54,18,0,213
+Crystal Peak,brush,19,60,6,0,828
+Thunder Basin,mixed_conifer,22,34,40,1,14166
