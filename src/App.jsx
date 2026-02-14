@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
-import FireMap from "./components/FireMap";
-import InsightsPanel from "./components/InsightsPanel";
+import FireMap, { criticalRecommendation } from "./components/FireMap";
 import LayerControls from "./components/LayerControls";
 import "./App.css";
 
@@ -14,20 +13,17 @@ export default function App() {
     historical: true,
   });
 
-  const [mapBounds, setMapBounds] = useState(null);
-
   const handleToggle = useCallback((key) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
-  const handleMapMove = useCallback((bounds) => {
-    setMapBounds(bounds);
-  }, []);
-
   return (
     <div className="app">
+      <div className="critical-banner">
+        <div className="critical-banner-text">{criticalRecommendation}</div>
+      </div>
       <div className="map-section">
-        <FireMap onMapMove={handleMapMove} layers={layers} />
+        <FireMap layers={layers} />
         <LayerControls layers={layers} onToggle={handleToggle} />
         <div className="map-legend">
           <div className="legend-item">
@@ -55,10 +51,6 @@ export default function App() {
             Evac Warning
           </div>
         </div>
-      </div>
-
-      <div className="insights-section">
-        <InsightsPanel mapBounds={mapBounds} />
       </div>
     </div>
   );
