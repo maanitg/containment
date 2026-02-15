@@ -107,6 +107,50 @@ export const elevationPoints = [
   { lat: 39.54, lng: -121.03, elevation: 3900, label: "Saddle Point" },
 ];
 
+// Power lines
+export const powerLines = [
+  {
+    name: "PG&E Butte-Sierra 115kV Transmission",
+    voltage: "115kV",
+    type: "Transmission",
+    operator: "PG&E",
+    geometry: {
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-121.10, 39.48],
+          [-121.07, 39.50],
+          [-121.04, 39.52],
+          [-121.01, 39.545],
+          [-120.98, 39.56],
+          [-120.95, 39.58],
+        ],
+      },
+    },
+  },
+  {
+    name: "Pinecrest Distribution 12kV",
+    voltage: "12kV",
+    type: "Distribution",
+    operator: "PG&E",
+    geometry: {
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-121.02, 39.56],
+          [-121.00, 39.565],
+          [-120.98, 39.56],
+          [-120.96, 39.555],
+        ],
+      },
+    },
+  },
+];
+
 // Ridge lines (important terrain features)
 export const ridgeLines = [
   {

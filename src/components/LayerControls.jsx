@@ -5,6 +5,7 @@ export default function LayerControls({ layers, onToggle }) {
     { key: "communities", label: "Communities", color: "#6b7280" },
     { key: "water", label: "Water", color: "#3b82f6" },
     { key: "terrain", label: "Ridgelines", color: "#78716c" },
+    { key: "powerlines", label: "Power Lines", color: "#a855f7" },
     { key: "historical", label: "Historical Fires", color: "#9ca3af" },
   ];
 

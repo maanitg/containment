@@ -62,3 +62,23 @@ export const wind = {
   gusts: 28, // mph
   forecastChange: "Winds shifting to W at 15mph by 1800hrs",
 };
+
+// Wind forecast — upcoming conditions (next 12h windows)
+export const windForecast = [
+  {
+    time: "1800h",
+    direction: 270,
+    directionLabel: "W",
+    speed: 15,
+    gusts: 22,
+    change: "direction", // direction shift
+  },
+  {
+    time: "0200h",
+    direction: 315,
+    directionLabel: "NW",
+    speed: 32,
+    gusts: 45,
+    change: "surge", // major speed increase
+  },
+];
