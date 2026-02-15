@@ -11,7 +11,7 @@ A real-time multi-agent decision support system for wildfire incident command, c
 ```bash
 # 1. Setup environment
 cp .env.example .env
-# Edit .env and add your API keys
+# Edit .env and add your OPENAI_API_KEY and GEMINI_API_KEY
 
 # 2. Start backend (Terminal 1)
 cd backend
@@ -26,7 +26,12 @@ npm run dev
 # 4. Open http://localhost:5173
 ```
 
-📚 **Full documentation**: See [`docs/QUICK_START.md`](docs/QUICK_START.md)
+### Prerequisites
+
+- **Node.js** 18+ and npm
+- **Python** 3.10+
+- **OpenAI API Key** - [Get one here](https://platform.openai.com/api-keys)
+- **Google Gemini API Key** - [Get one here](https://aistudio.google.com/app/apikey)
 
 ---
 
@@ -46,69 +51,37 @@ WildfireOS is a command-and-control platform designed for wildfire incident comm
 ✅ **Automatic error correction** - Failed validation triggers agent replanning (max 2 retries)
 ✅ **Real-time streaming** - WebSocket support for live status updates as agents work
 ✅ **Historical context** - Gemini 1.5 Pro analyzes past fires with similar conditions
-✅ **Tactical alerts** - Structured notifications for evacuation threats, power lines, resource needs
+✅ **Tactical alerts** - Concise factual notifications (max 10 words each)
+✅ **Offline-first support** - Works without network connectivity using cached data
 
 ---
 
 ## 🏗️ Architecture
 
-### Frontend (React + Vite + Leaflet)
+### Multi-Agent Pipeline
 
 ```
-frontend/
-├── src/
-│   ├── components/
-│   │   ├── FireMap.jsx          # Main map with fire perimeters, spread arrows
-│   │   ├── InsightsPanel.jsx    # Alert cards with acknowledgment system
-│   │   └── LayerControls.jsx    # Toggle fuel types, terrain, historical fires
-│   ├── hooks/
-│   │   └── useFireData.js       # Custom hook for fetching data from backend
-│   ├── services/
-│   │   └── dataService.js       # Backend API client
-│   └── App.jsx                  # Main app with alert management
-```
-
-**Map Visualizations:**
-- Fire perimeter + active front with spread velocity arrows
-- Wind direction arrows across map grid
-- Evacuation zones (Order/Warning) with population counts
-- Power lines with threat indicators
-- Firebreaks (dozer/hand lines) with condition status
-- Historical fire scars (highlighted when in current path)
-- Terrain layers (fuel types, ridgelines, water resources)
-
-### Backend (FastAPI + OpenAI + Gemini)
-
-```
-backend/
-├── agents/
-│   ├── orchestrator.py          # Multi-agent coordination engine
-│   └── historical_memory.py     # Gemini-powered historical context
-├── data/
-│   └── historical_fires.json    # Past incident database
-└── main.py                      # FastAPI server with REST + WebSocket
-```
-
-**Agent Pipeline:**
-
-```mermaid
-graph TD
-    A[Live Fire Data] --> B[Graph Physics Engine]
-    B --> C[Deterministic Calculations]
-    C --> D[Fire Behavior Agent GPT-4o]
-    C --> E[Risk Analysis Agent GPT-4o]
-    D --> F[Notification Agent GPT-4o]
-    E --> F
-    D --> G[Recommendation Agent GPT-4o]
-    E --> G
-    G --> H[Validator]
-    F --> I[Output to Frontend]
-    H -->|Pass| I
-    H -->|Fail| J[Force Replan with Feedback]
-    J --> E
-    J --> G
-    K[Historical Memory Gemini 1.5 Pro] --> D
-    K --> E
+Live Fire Data → Graph Physics Engine → Deterministic Calculations
+                                              ↓
+                    ┌────────────────────────┴────────────────────────┐
+                    ↓                                                  ↓
+            Fire Behavior Agent                              Risk Analysis Agent
+              (GPT-4o)                                           (GPT-4o)
+                    ↓                                                  ↓
+                    └────────────────┬───────────────────────────────┘
+                                     ↓
+                    ┌────────────────┴────────────────┐
+                    ↓                                  ↓
+          Notification Agent                  Recommendation Agent
+            (GPT-4o)                               (GPT-4o)
+         Generates 3 facts                     Provides 1 action
+                    ↓                                  ↓
+                    └────────────────┬────────────────┘
+                                     ↓
+                                 Validator
+                          (Physics constraint check)
+                                     ↓
+                              Output to Frontend
 ```
 
 **Agents:**
@@ -116,142 +89,50 @@ graph TD
 1. **Graph Physics Engine** - Computes base spread velocity, slope/vegetation multipliers, baseline threat
 2. **Fire Behavior Agent** (GPT-4o) - Analyzes wind, slope, vegetation effects on spread
 3. **Risk Analysis Agent** (GPT-4o) - Identifies threatened infrastructure, assigns threat levels
-4. **Notification Agent** (GPT-4o) - Generates 3 tactical alerts (exactly 2 sentences each)
-5. **Recommendation Agent** (GPT-4o) - Provides top consideration for incident command
+4. **Notification Agent** (GPT-4o) - Generates 3 concise factual alerts (max 10 words each)
+5. **Recommendation Agent** (GPT-4o) - Provides single tactical action (max 12 words) with brief rationale
 6. **Historical Memory Agent** (Gemini 1.5 Pro) - Finds analogous past fires, contextualizes behavior
 7. **Validator** - Ensures AI outputs obey physics (critical threats must match deterministic baseline)
 
 ---
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **Node.js** 18+ and npm
-- **Python** 3.10+
-- **OpenAI API Key** - [Get one here](https://platform.openai.com/api-keys)
-- **Google Gemini API Key** - [Get one here](https://aistudio.google.com/app/apikey)
-
-### Installation
-
-```bash
-# 1. Clone and navigate to project
-cd containment
-
-# 2. Install frontend dependencies
-cd frontend
-npm install
-
-# 3. Install backend dependencies
-cd ../backend
-pip install -r ../requirements.txt
-
-# 4. Configure API keys
-cd ..
-cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY and GEMINI_API_KEY
-```
-
-### Running the Application
-
-**Terminal 1 - Backend:**
-```bash
-cd backend
-python main.py
-```
-- API: http://localhost:8000
-- Docs: http://localhost:8000/docs
-- WebSocket: ws://localhost:8000/ws
-
-**Terminal 2 - Frontend:**
-```bash
-cd frontend
-npm run dev
-```
-- App: http://localhost:5173
-
----
-
 ## 📡 API Reference
 
-### REST Endpoint
+### Main Processing Endpoint
 
-**POST** `/api/analyze`
+**POST** `/api/process-live-data/{time_index}`
 
-Request:
-```json
-{
-  "live_graph": {
-    "step": 10,
-    "total_burning": 450,
-    "total_burned": 2300
-  },
-  "wind_data": {
-    "speed": 25,
-    "direction": 45
-  },
-  "environment_data": {
-    "slope": 30,
-    "terrain_vegetation": "chaparral"
-  },
-  "infrastructure_data": {
-    "nearby_towns": [
-      {"name": "Pine Grove", "distance_km": 4.5}
-    ]
-  },
-  "previous_recommendation": null
-}
-```
+Processes timestamped fire data through the agent pipeline (time_index: 1-5)
 
-Response:
+**Response:**
 ```json
 {
   "notifications": [
     {
-      "headline": "Critical uphill spread detected",
-      "explanation": "Fire advancing into steep chaparral slope. Spread velocity will increase 80% over next 2 hours."
+      "id": 1,
+      "fact": "Fire approaching Ridgeview - 2.8km away",
+      "urgency": "critical",
+      "time_label": "T+0h (08:00)"
     }
   ],
   "recommendation": {
-    "consideration": "Deploy Type 1 crew to Ridge Road",
-    "rationale": "Physics shows critical exposure to Pine Grove within 4 hours. Ridge Road provides last defensible anchor point.",
-    "confidence_score": 85
-  },
-  "computed_physics": {
-    "base_spread_velocity": 45.0,
-    "effective_velocity_multiplier": 1.8,
-    "effective_spread_velocity": 81.0,
-    "deterministic_baseline_threat": "CRITICAL",
-    "critical_exposures_identified": ["Pine Grove is 4.5km away"]
-  },
-  "history_summary": "Canyon Creek Fire (2022) exhibited similar chaparral upslope behavior. Required 5x resource escalation when fire reached ridge."
-}
-```
-
-### WebSocket Endpoint
-
-**Connect:** `ws://localhost:8000/ws`
-
-Send fire data, receive streaming updates:
-
-```json
-// Status updates during processing
-{
-  "type": "status_update",
-  "status": {
-    "graph_physics": "complete",
-    "level_1_agents": "running",
-    "level_2_agents": "idle",
-    "validation": "idle"
+    "action": "Deploy crews to Johnson Creek firebreak immediately",
+    "rationale": "Fire will reach location in 3 hours, last defensible position",
+    "confidence_score": 85,
+    "time_label": "T+0h (08:00)"
   }
 }
-
-// Final results
-{
-  "type": "analysis_complete",
-  "data": { /* same as REST response */ }
-}
 ```
+
+### Other Endpoints
+
+- **GET** `/api/data/all` - Get all static map data (fire perimeter, terrain, infrastructure)
+- **GET** `/api/notifications?limit=20&offset=0` - Get agent-generated notifications
+- **GET** `/api/recommendations/latest` - Get most recent recommendation
+- **GET** `/health` - Health check
+- **WebSocket** `ws://localhost:8000/ws` - Real-time streaming updates
+
+Full API documentation: http://localhost:8000/docs
 
 ---
 
@@ -278,44 +159,47 @@ This prevents AI hallucination and ensures recommendations are grounded in fire 
 
 ---
 
-## 🛠️ Development
+## 📁 Project Structure
 
-### Adding Custom Historical Fires
-
-Edit `backend/data/historical_fires.json`:
-
-```json
-{
-  "name": "Your Fire Name",
-  "year": 2024,
-  "conditions": {
-    "windSpeed": 30,
-    "slope": 25,
-    "vegetation": "timber"
-  },
-  "keyLesson": "What made this fire unique",
-  "resources": {
-    "initialEngines": 10,
-    "peakEngines": 50,
-    "escalationNote": "Why resources increased"
-  }
-}
+```
+containment/
+├── backend/              # Python/FastAPI backend
+│   ├── agents/
+│   │   ├── orchestrator.py          # Multi-agent coordination
+│   │   └── historical_memory.py     # Gemini historical context
+│   ├── data/                         # JSON data files
+│   ├── main.py                       # API endpoints
+│   ├── notification_manager.py       # Notification storage
+│   └── requirements.txt
+├── frontend/            # React/Vite frontend
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── FireMap.jsx          # Leaflet map
+│   │   │   └── LayerControls.jsx    # Map controls
+│   │   ├── services/
+│   │   │   └── dataService.js       # API client
+│   │   ├── offline/                 # Offline-first support
+│   │   ├── App.jsx                  # Main app
+│   │   └── App.css                  # Styles
+│   └── package.json
+├── docs/                # Additional documentation
+└── README.md           # This file
 ```
 
-### Customizing Agent Behavior
+---
 
-Edit `backend/agents/orchestrator.py`:
+## 🔑 Environment Variables
 
-- **Adjust validation rules** (lines 98-124)
-- **Modify physics calculations** (lines 40-94)
-- **Add new agent types** - Create async function, add to execution graph
+Create a `.env` file in the root directory:
 
-### Frontend Customization
+```bash
+# Required
+OPENAI_API_KEY=your_openai_key      # For multi-agent system
+GEMINI_API_KEY=your_gemini_key      # For historical memory
 
-Edit mock data:
-- `frontend/src/data/firePerimeter.js` - Active fire state
-- `frontend/src/data/terrain.js` - Fuel zones, topography
-- `frontend/src/data/infrastructure.js` - Communities, firebreaks
+# Optional Frontend
+VITE_API_URL=http://localhost:8000  # Backend API URL (defaults to localhost:8000)
+```
 
 ---
 
@@ -330,12 +214,69 @@ Edit mock data:
 | Historical Memory | Google Gemini 1.5 Pro | Context window for past fires |
 | Validation | Pydantic + Custom Logic | Type safety + physics checks |
 | Real-time | WebSockets | Streaming updates |
+| Offline | IndexedDB + Service Worker | Offline-first support |
 
 ---
 
-## 📝 License
+## 🛠️ Development
 
-TreeHacks 2026 Project
+### Running the Backend
+
+```bash
+cd backend
+python main.py
+```
+- API: http://localhost:8000
+- Docs: http://localhost:8000/docs
+- WebSocket: ws://localhost:8000/ws
+
+### Running the Frontend
+
+```bash
+cd frontend
+npm run dev          # Development server
+npm run build        # Production build
+npm run preview      # Preview production build
+```
+- App: http://localhost:5173
+
+### Testing
+
+```bash
+# Backend health check
+curl http://localhost:8000/health
+
+# Get all static data
+curl http://localhost:8000/api/data/all
+
+# Process timestamped data
+curl -X POST http://localhost:8000/api/process-live-data/1
+
+# Frontend: Open http://localhost:5173
+# - Map should show fire perimeter
+# - Notifications should appear in sidebar after processing
+# - Recommendation appears in bottom-right card
+```
+
+---
+
+## 🌐 Offline-First Support
+
+The app includes a complete offline-first system:
+
+- **Connectivity detection** - Real-time network status monitoring
+- **Offline banner** - Visual indicator when offline
+- **IndexedDB cache** - Network-first strategy with fallback to cached data
+- **Service worker** - Caches app shell and map tiles
+- **Write queue** - Queues requests made while offline for replay on reconnect
+
+### Testing Offline Mode
+
+1. Load the app online and navigate the map to cache tiles
+2. Open DevTools > Network > check "Offline"
+3. Verify offline banner appears at top
+4. Navigate the map - cached tiles display
+5. Uncheck "Offline" - banner disappears, "Back online" toast shows
 
 ---
 
@@ -357,107 +298,4 @@ Built for TreeHacks 2026. For issues or questions, please open an issue in the r
 
 **Built with ❤️ for wildfire incident commanders**
 
----
-
-## 📚 Documentation
-
-- **[Quick Start](docs/QUICK_START.md)** - Get running in 5 minutes
-- **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Architecture overview
-- **[Data Consolidation](docs/DATA_CONSOLIDATION_README.md)** - Data flow and API
-- **[Setup Guide](docs/SETUP.md)** - Detailed installation instructions
-
-## 📁 Project Structure
-
-```
-containment/
-├── backend/              # Python/FastAPI backend
-│   ├── agents/          # Multi-agent AI system
-│   ├── data/            # JSON data files (single source of truth)
-│   ├── main.py          # API endpoints
-│   └── requirements.txt
-├── frontend/            # React/Vite frontend
-│   ├── src/
-│   │   ├── components/  # React components
-│   │   ├── hooks/       # Custom hooks (useFireData)
-│   │   └── services/    # API client (dataService)
-│   └── package.json
-├── docs/                # Documentation
-├── .env.example         # Environment template
-└── README.md           # This file
-```
-
-## 🔑 Environment Variables
-
-### Backend
-```bash
-GEMINI_API_KEY=your_gemini_key      # For historical memory
-OPENAI_API_KEY=your_openai_key      # For multi-agent system
-```
-
-### Frontend (optional)
-```bash
-VITE_API_URL=http://localhost:8000  # Backend API URL
-```
-
-## 🛠️ Development
-
-### Backend
-```bash
-cd backend
-python main.py                       # Runs on http://localhost:8000
-# API docs: http://localhost:8000/docs
-```
-
-### Frontend
-```bash
-cd frontend
-npm run dev                          # Runs on http://localhost:5173
-npm run build                        # Production build
-```
-
-## 🧪 Testing
-
-Verify the system is working:
-
-```bash
-# Backend health check
-curl http://localhost:8000/health
-
-# Get all data
-curl http://localhost:8000/api/data/all
-
-# Frontend: Open http://localhost:5173
-# - Map should show fire perimeter
-# - Alerts should appear in sidebar
-```
-
-
-## Offline-First Support
-
-The app includes a complete offline-first system so it remains usable when network connectivity is lost.
-
-### How It Works
-
-- **Connectivity detection** (`frontend/src/offline/connectivity.js`): Combines `navigator.onLine`, browser events, and periodic pings to `/api/health` to detect real connectivity. Debounced to prevent flapping.
-- **Offline banner + toasts** (`frontend/src/offline/OfflineBanner.jsx`): A fixed top banner appears within 250ms of going offline. Toast notifications fire on offline/online transitions. Web Notifications are sent if permission is granted.
-- **IndexedDB cache** (`frontend/src/offline/idb-cache.js`): A `cachedFetch()` wrapper uses network-first strategy with 6s timeout. Successful responses are cached in IndexedDB. When offline or on failure, cached data is returned with `{ fromCache, stale, updatedAt }` metadata.
-- **Write queue** (`frontend/src/offline/write-queue.js`): Non-GET requests made while offline are queued in IndexedDB with a client-generated `requestId`. On reconnect, they replay in order with exponential backoff.
-- **Service worker** (`frontend/public/sw.js`): Caches the app shell for offline start and map tiles (cache-first for tiles, network-first for API, stale-while-revalidate for static assets).
-- **Reconnect revalidation** (`frontend/src/offline/OfflineProvider.jsx`): When connectivity returns, queued writes are replayed and active queries are revalidated via a global event channel.
-
-### Limitations
-
-- Map tiles only display if previously cached (visited while online).
-- `cachedFetch` and `useCachedFetch` are ready for when additional API endpoints are added.
-- PWA icons (`icon-192.png`, `icon-512.png`) should be added to `frontend/public/` for full installable PWA support.
-- Write queue replay assumes endpoints are idempotent (uses `X-Request-Id` header).
-
-### Testing Steps
-
-1. Load the app online, navigate and zoom the map to cache tiles.
-2. Open DevTools > Network > check "Offline".
-3. Verify: offline banner appears at top, toast notification shows.
-4. Navigate the map — previously visited tiles display, uncached tiles show placeholder.
-5. Uncheck "Offline" — banner disappears, "Back online" toast shows.
-6. For API testing: use `cachedFetch('/api/health')` in console — returns cached when offline.
-7. Verify no infinite loops or UI crashes during rapid online/offline toggling.
+TreeHacks 2026 Project
