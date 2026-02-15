@@ -4,7 +4,7 @@
 
 A real-time multi-agent decision support system for wildfire incident command, combining deterministic physics calculations with coordinated AI agents to provide tactical recommendations, threat assessments, and automated alerts.
 
-![TreeHacks 2025](https://img.shields.io/badge/TreeHacks-2025-green)
+![TreeHacks 2026](https://img.shields.io/badge/TreeHacks-2026-green)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![React](https://img.shields.io/badge/React-19.2-61dafb)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)
@@ -317,13 +317,13 @@ Edit mock data:
 
 ## 📝 License
 
-TreeHacks 2025 Project
+TreeHacks 2026 Project
 
 ---
 
 ## 🤝 Contributing
 
-Built for TreeHacks 2025. For issues or questions, please open an issue in the repository.
+Built for TreeHacks 2026. For issues or questions, please open an issue in the repository.
 
 ---
 
