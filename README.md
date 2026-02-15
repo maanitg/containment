@@ -91,7 +91,7 @@ Command-and-control platform for wildfire incident commanders combining determin
                                   |
                                   v
                               Validator
-                      (physics constraint check)
+            (physics constraint check + multi-turn retry loop)
                                   |
                                   v
                            Frontend Output
