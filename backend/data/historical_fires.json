@@ -1,0 +1,86 @@
+[
+  {
+    "name": "Canyon Creek Fire",
+    "year": 2022,
+    "location": "Northern California",
+    "acres": 12500,
+    "containedInDays": 14,
+    "cause": "Lightning",
+    "conditions": {
+      "windSpeed": 25,
+      "windDirection": "NE",
+      "slope": 30,
+      "vegetation": "chaparral"
+    },
+    "keyLesson": "Rapid uphill spread in chaparral required defensive positioning ahead of fire front.",
+    "suppressionTactics": [
+      "dozer lines on ridgetops",
+      "structure protection in Pine Grove",
+      "evacuation of Highway 89 corridor"
+    ],
+    "resources": {
+      "initialEngines": 15,
+      "peakEngines": 85,
+      "initialCrews": 8,
+      "peakCrews": 35,
+      "airSupport": true,
+      "escalationNote": "Required 5x resource increase when fire reached chaparral belt"
+    }
+  },
+  {
+    "name": "Ridge Complex",
+    "year": 2021,
+    "location": "Sierra Nevada",
+    "acres": 8200,
+    "containedInDays": 9,
+    "cause": "Power line",
+    "conditions": {
+      "windSpeed": 35,
+      "windDirection": "SW",
+      "slope": 25,
+      "vegetation": "timber"
+    },
+    "keyLesson": "High winds caused spot fires 2+ miles ahead. Early power line de-energization prevented further ignitions.",
+    "suppressionTactics": [
+      "burnout operations along Highway 44",
+      "indirect line construction",
+      "spot fire suppression"
+    ],
+    "resources": {
+      "initialEngines": 20,
+      "peakEngines": 65,
+      "initialCrews": 12,
+      "peakCrews": 28,
+      "airSupport": true,
+      "escalationNote": "Aerial reconnaissance critical for identifying spot fires in heavy timber"
+    }
+  },
+  {
+    "name": "Meadow Fire",
+    "year": 2023,
+    "location": "Central California",
+    "acres": 4800,
+    "containedInDays": 6,
+    "cause": "Vehicle",
+    "conditions": {
+      "windSpeed": 15,
+      "windDirection": "W",
+      "slope": 10,
+      "vegetation": "grassland"
+    },
+    "keyLesson": "Fast-moving grass fire required immediate evacuations of rural communities. Single-access roads created bottlenecks.",
+    "suppressionTactics": [
+      "aggressive initial attack",
+      "structure triage",
+      "traffic control on escape routes"
+    ],
+    "resources": {
+      "initialEngines": 25,
+      "peakEngines": 40,
+      "initialCrews": 6,
+      "peakCrews": 15,
+      "airSupport": false,
+      "escalationNote": "Rapid containment due to favorable terrain and aggressive initial attack"
+    }
+  }
+]
