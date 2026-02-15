@@ -21,14 +21,16 @@ function distanceMiles(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Get the "leading edge" of the fire in wind direction
+// wind.direction is "from" bearing; fire spreads in the opposite direction.
+const spreadRad = ((wind.direction + 180) * Math.PI) / 180;
+
+// Get the "leading edge" of the fire in spread direction
 function getFireFront() {
   const coords = currentFire.perimeter.geometry.coordinates[0];
-  const windRad = (wind.direction * Math.PI) / 180;
   let maxProj = -Infinity;
   let frontPoint = coords[0];
   for (const c of coords) {
-    const proj = c[1] * Math.cos(windRad) + c[0] * Math.sin(windRad);
+    const proj = c[1] * Math.cos(spreadRad) + c[0] * Math.sin(spreadRad);
     if (proj > maxProj) {
       maxProj = proj;
       frontPoint = c;
@@ -94,15 +96,14 @@ function generateLocalInsights() {
   }
 
   // Terrain ahead analysis
-  const windRad = (wind.direction * Math.PI) / 180;
   for (const fuel of fuelTypes) {
     const centroid = getCentroid(fuel.geometry.coordinates[0]);
     const dist = distanceMiles(fireFront.lat, fireFront.lng, centroid[1], centroid[0]);
-    // Check if fuel zone is ahead (in wind direction)
+    // Check if fuel zone is ahead (in fire spread direction)
     const dLat = centroid[1] - fireFront.lat;
     const dLng = centroid[0] - fireFront.lng;
     const angle = Math.atan2(dLng, dLat);
-    const angleDiff = Math.abs(angle - windRad);
+    const angleDiff = Math.abs(angle - spreadRad);
     if (angleDiff < Math.PI / 3 && dist < 4) {
       const urgency = fuel.properties.fuelType === "dead_timber" ? "critical" : "warning";
       insights.push({

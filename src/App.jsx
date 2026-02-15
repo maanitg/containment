@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import FireMap, { aiInsights } from "./components/FireMap";
+import OfflineBanner from "./offline/OfflineBanner";
 import "./App.css";
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <OfflineBanner />
       <div className="map-section">
         <FireMap layers={layers} mapRef={mapRef} />
         <div className="map-legend">
@@ -70,11 +72,19 @@ export default function App() {
             </div>
             <div className="legend-item">
               <span className="legend-line" style={{ backgroundColor: "#16a34a" }} />
-              Firebreak
+              Firebreak (holding)
+            </div>
+            <div className="legend-item">
+              <span className="legend-line" style={{ backgroundColor: "#dc2626" }} />
+              Firebreak (at risk)
             </div>
             <div className="legend-item">
               <span className="legend-line" style={{ backgroundColor: "#a855f7" }} />
               Power Line
+            </div>
+            <div className="legend-item">
+              <span className="legend-swatch" style={{ backgroundColor: "#fbbf24", opacity: 0.4, border: "1px dashed #dc2626" }} />
+              Downed Line Zone
             </div>
           </div>
           <div className="legend-divider" />

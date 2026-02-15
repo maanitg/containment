@@ -1,0 +1,85 @@
+/* ─── Offline Banner ──────────────────────────────────── */
+
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #1e293b;
+  color: #f1f5f9;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  animation: offline-banner-in 0.2s ease-out;
+}
+
+.offline-banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: offline-pulse 1.5s infinite;
+}
+
+@keyframes offline-banner-in {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes offline-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+/* ─── Toast Container ─────────────────────────────────── */
+
+.offline-toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 10001;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.offline-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  transform: translateX(120%);
+  opacity: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  pointer-events: auto;
+}
+
+.offline-toast-visible {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.offline-toast-offline {
+  background: #1e293b;
+}
+
+.offline-toast-online {
+  background: #16a34a;
+}
+
+.offline-toast-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+}
