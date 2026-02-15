@@ -11,6 +11,8 @@ client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 MODEL_NAME = "gpt-4o-2024-08-06"
 MAX_RETRIES = 2
+RATE_LIMIT_RETRY_ATTEMPTS = 3
+RATE_LIMIT_BACKOFF_BASE = 20  # seconds
 
 # --- DATA CONTRACTS ---
 
@@ -24,15 +26,13 @@ class RiskAnalysis(BaseModel):
     vulnerable_targets: list[str] = Field(description="List specific towns or fire lines at risk.")
 
 class NotificationItem(BaseModel):
-    headline: str
-    explanation: str = Field(description="Exactly two sentences explaining the alert.")
+    fact: str = Field(description="Concise factual statement (max 10 words). Example: 'Wind speed increasing to 32mph from NW'")
 
 class AgentNotifications(BaseModel):
-    alerts: list[NotificationItem] = Field(description="Exactly 3 notifications.")
+    alerts: list[NotificationItem] = Field(description="Exactly 3 brief factual notifications.")
 
 class AgentRecommendation(BaseModel):
-    consideration: str = Field(description="Top tactical consideration for command.")
-    rationale: str = Field(description="Explanation citing explicit physical variables.")
+    action: str = Field(description="Single recommended action (max 12 words).")
     confidence_score: int = Field(description="0-100 score of plan viability.")
 
 # --- DETERMINISTIC GRAPH LOGIC ---
@@ -123,42 +123,70 @@ def validate_agent_reasoning(
 
     return errors
 
+# --- RATE LIMIT HANDLING ---
+
+async def _call_openai_with_retry(func, *args, **kwargs):
+    """Wrapper to handle OpenAI rate limits with exponential backoff"""
+    for attempt in range(RATE_LIMIT_RETRY_ATTEMPTS):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            error_str = str(e)
+            if "rate_limit" in error_str.lower() or "429" in error_str:
+                if attempt < RATE_LIMIT_RETRY_ATTEMPTS - 1:
+                    wait_time = RATE_LIMIT_BACKOFF_BASE * (2 ** attempt)
+                    print(f"[Rate Limit] Hit rate limit, waiting {wait_time}s before retry {attempt + 1}/{RATE_LIMIT_RETRY_ATTEMPTS}")
+                    await asyncio.sleep(wait_time)
+                else:
+                    print(f"[Rate Limit] Exhausted retries, failing")
+                    raise
+            else:
+                # Not a rate limit error, re-raise immediately
+                raise
+    return None
+
 # --- AGENT FUNCTIONS ---
 
 async def _run_fire_agent(processed_graph: dict[str, Any], history_summary: str) -> FireAnalysis:
-    completion = await client.beta.chat.completions.parse(
-        model=MODEL_NAME,
-        messages=[
-            {"role": "system", "content": "You are the Fire Behavior Agent. Rely strictly on the 'computed_physics' provided."},
-            {"role": "user", "content": f"PROCESSED GRAPH: {processed_graph}\nHISTORY: {history_summary}"}
-        ],
-        response_format=FireAnalysis,
-    )
-    return completion.choices[0].message.parsed
+    async def _call():
+        completion = await client.beta.chat.completions.parse(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are the Fire Behavior Agent. Rely strictly on the 'computed_physics' provided."},
+                {"role": "user", "content": f"PROCESSED GRAPH: {processed_graph}\nHISTORY: {history_summary}"}
+            ],
+            response_format=FireAnalysis,
+        )
+        return completion.choices[0].message.parsed
+    return await _call_openai_with_retry(_call)
 
 # MINIMAL CHANGE: add feedback so RiskAgent can fix violations
 async def _run_risk_agent(processed_graph: dict[str, Any], history_summary: str, feedback: str = "") -> RiskAnalysis:
-    feedback_context = f"\nVALIDATOR FEEDBACK: {feedback}\nYou MUST fix this." if feedback else ""
-    completion = await client.beta.chat.completions.parse(
-        model=MODEL_NAME,
-        messages=[
-            {"role": "system", "content": "You assess infrastructure threats. Do not contradict the 'deterministic_baseline_threat'."},
-            {"role": "user", "content": f"PROCESSED GRAPH: {processed_graph}\nHISTORY: {history_summary}{feedback_context}"}
-        ],
-        response_format=RiskAnalysis,
-    )
-    return completion.choices[0].message.parsed
+    async def _call():
+        feedback_context = f"\nVALIDATOR FEEDBACK: {feedback}\nYou MUST fix this." if feedback else ""
+        completion = await client.beta.chat.completions.parse(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You assess infrastructure threats. Do not contradict the 'deterministic_baseline_threat'."},
+                {"role": "user", "content": f"PROCESSED GRAPH: {processed_graph}\nHISTORY: {history_summary}{feedback_context}"}
+            ],
+            response_format=RiskAnalysis,
+        )
+        return completion.choices[0].message.parsed
+    return await _call_openai_with_retry(_call)
 
 async def _run_notif_agent(fire_data: FireAnalysis, risk_data: RiskAnalysis) -> AgentNotifications:
-    completion = await client.beta.chat.completions.parse(
-        model=MODEL_NAME,
-        messages=[
-            {"role": "system", "content": "Generate 3 tactical alerts. Explanations MUST be exactly 2 sentences."},
-            {"role": "user", "content": f"FIRE: {fire_data.model_dump_json()}\nRISK: {risk_data.model_dump_json()}"}
-        ],
-        response_format=AgentNotifications,
-    )
-    return completion.choices[0].message.parsed
+    async def _call():
+        completion = await client.beta.chat.completions.parse(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "Generate 3 brief factual alerts. Each must be a concise fact (max 10 words). Examples: 'Fire approaching Ridgeview - 2.8km away', 'Wind gusts reaching 48mph from WNW', 'Dead timber zone ahead in fire path'."},
+                {"role": "user", "content": f"FIRE: {fire_data.model_dump_json()}\nRISK: {risk_data.model_dump_json()}"}
+            ],
+            response_format=AgentNotifications,
+        )
+        return completion.choices[0].message.parsed
+    return await _call_openai_with_retry(_call)
 
 async def _run_rec_agent(
     fire_data: FireAnalysis,
@@ -166,18 +194,20 @@ async def _run_rec_agent(
     previous_rec: dict[str, Any] | None,
     feedback: str
 ) -> AgentRecommendation:
-    turn_context = f"PREVIOUS RECOMMENDATION: {previous_rec}. Update based on new data." if previous_rec else "Initial assessment."
-    feedback_context = f"\nURGENT VALIDATOR FEEDBACK: {feedback}\nYou MUST correct these errors in this iteration." if feedback else ""
+    async def _call():
+        turn_context = f"PREVIOUS: {previous_rec.get('action') if previous_rec else 'None'}"
+        feedback_context = f"\nVALIDATOR: {feedback}" if feedback else ""
 
-    completion = await client.beta.chat.completions.parse(
-        model=MODEL_NAME,
-        messages=[
-            {"role": "system", "content": "Provide the top tactical consideration. You must strictly obey any validator feedback."},
-            {"role": "user", "content": f"FIRE: {fire_data.model_dump_json()}\nRISK: {risk_data.model_dump_json()}\n\n{turn_context}{feedback_context}"}
-        ],
-        response_format=AgentRecommendation,
-    )
-    return completion.choices[0].message.parsed
+        completion = await client.beta.chat.completions.parse(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "Provide ONE concise tactical action (max 12 words). Example: 'Deploy crews to Johnson Creek firebreak immediately'. Obey validator feedback."},
+                {"role": "user", "content": f"FIRE: {fire_data.model_dump_json()}\nRISK: {risk_data.model_dump_json()}\n{turn_context}{feedback_context}"}
+            ],
+            response_format=AgentRecommendation,
+        )
+        return completion.choices[0].message.parsed
+    return await _call_openai_with_retry(_call)
 
 # --- MAIN EXPORT FUNCTION ---
 

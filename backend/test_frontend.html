@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Backend Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #00ff00; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #000; padding: 10px; border: 1px solid #00ff00; overflow-x: auto; }
+        .success { color: #00ff00; }
+        .error { color: #ff0000; }
+    </style>
+</head>
+<body>
+    <h1>🔥 Backend Connection Test</h1>
+
+    <button onclick="testHealth()">Test Health</button>
+    <button onclick="testNotifications()">Test Notifications</button>
+    <button onclick="testStatus()">Test Status</button>
+    <button onclick="testProcess()">Process File 1</button>
+
+    <div id="output"></div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        const output = document.getElementById('output');
+
+        function log(message, isError = false) {
+            const div = document.createElement('div');
+            div.className = isError ? 'error' : 'success';
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            output.appendChild(div);
+        }
+
+        async function testHealth() {
+            log('Testing /health endpoint...');
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                log(`✅ Health: ${JSON.stringify(data)}`);
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, true);
+            }
+        }
+
+        async function testNotifications() {
+            log('Testing /api/notifications endpoint...');
+            try {
+                const response = await fetch(`${API_URL}/api/notifications`);
+                const data = await response.json();
+                log(`✅ Notifications: ${data.total} total`);
+                if (data.notifications && data.notifications.length > 0) {
+                    const pre = document.createElement('pre');
+                    pre.textContent = JSON.stringify(data.notifications[0], null, 2);
+                    output.appendChild(pre);
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, true);
+            }
+        }
+
+        async function testStatus() {
+            log('Testing /api/status endpoint...');
+            try {
+                const response = await fetch(`${API_URL}/api/status`);
+                const data = await response.json();
+                const pre = document.createElement('pre');
+                pre.textContent = JSON.stringify(data, null, 2);
+                output.appendChild(pre);
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, true);
+            }
+        }
+
+        async function testProcess() {
+            log('Processing file 1...');
+            try {
+                const response = await fetch(`${API_URL}/api/process-live-data/1`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                log(`✅ Processing complete: ${data.notifications?.length || 0} notifications`);
+                const pre = document.createElement('pre');
+                pre.textContent = JSON.stringify(data, null, 2);
+                output.appendChild(pre);
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, true);
+            }
+        }
+
+        // Auto-test on load
+        window.onload = () => {
+            log('🔥 Backend Test Page Loaded');
+            log(`Testing connection to: ${API_URL}`);
+            testHealth();
+        };
+    </script>
+</body>
+</html>
