@@ -15,7 +15,7 @@ cp .env.example .env
 
 # 2. Start backend (Terminal 1)
 cd backend
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 python main.py
 
 # 3. Start frontend (Terminal 2)
@@ -42,7 +42,7 @@ Command-and-control platform for wildfire incident commanders combining determin
 **Core Capabilities:**
 - **Physics-grounded AI** - Deterministic calculations validate all AI outputs; violations trigger automatic replanning
 - **Geographic historical memory** - Gemini analyzes past fires from the same region to inform tactics
-- **Multi-agent orchestration** - 6 specialized agents (GPT-4o + Gemini) coordinate analysis in real-time
+- **Multi-agent orchestration** - 7 coordinated components (physics + GPT-4o + Gemini + validator) analyze risk in real-time
 - **Closed-loop validation** - Failed physics checks force agent replanning (max 2 retries)
 - **Interactive mapping** - Leaflet visualization with fire perimeters, terrain, infrastructure
 - **Offline-first** - Works without connectivity using cached data and IndexedDB
@@ -54,39 +54,47 @@ Command-and-control platform for wildfire incident commanders combining determin
 ### Multi-Agent Pipeline
 
 ```
-                          Live Fire Data
-                                ↓
-                    Graph Physics Engine
-                  (deterministic calculations)
-                                ↓
-        ┌───────────────────────┴───────────────────────┐
-        ↓                                                ↓
-  Historical Memory                                Physics Data
-   (Gemini 1.5 Pro)                              (spread, threat)
-  Finds regional fires                                  ↓
-        ↓                                                ↓
-        └───────────────────┬────────────────────────────┘
-                            ↓
-            ┌───────────────┴───────────────┐
-            ↓                                ↓
-    Fire Behavior Agent             Risk Analysis Agent
-         (GPT-4o)                        (GPT-4o)
-  Physics + History               Physics + History
-            ↓                                ↓
-            └───────────────┬────────────────┘
-                            ↓
-            ┌───────────────┴───────────────┐
-            ↓                                ↓
-    Notification Agent              Recommendation Agent
-         (GPT-4o)                        (GPT-4o)
-      3 factual alerts                 1 tactical action
-            ↓                                ↓
-            └───────────────┬────────────────┘
-                            ↓
-                        Validator
-                (physics constraint check)
-                            ↓
-                     Frontend Output
+                            Live Fire Data
+                                  |
+                                  v
+                      Graph Physics Engine
+                    (deterministic calculations)
+                                  |
+                  +---------------+---------------+
+                  |                               |
+                  v                               v
+        Historical Memory                    Physics Data
+         (Gemini 1.5 Pro)                  (spread, threat)
+        Finds regional fires                     |
+                  |                               |
+                  +---------------+---------------+
+                                  |
+                                  v
+                  +---------------+---------------+
+                  |                               |
+                  v                               v
+          Fire Behavior Agent             Risk Analysis Agent
+               (GPT-4o)                        (GPT-4o)
+            Physics + History               Physics + History
+                  |                               |
+                  +---------------+---------------+
+                                  |
+                                  v
+                  +---------------+---------------+
+                  |                               |
+                  v                               v
+          Notification Agent             Recommendation Agent
+               (GPT-4o)                        (GPT-4o)
+         1-5 factual alerts                 1 tactical action
+                  |                               |
+                  +---------------+---------------+
+                                  |
+                                  v
+                              Validator
+                      (physics constraint check)
+                                  |
+                                  v
+                           Frontend Output
 ```
 
 **Agent Roles:**
@@ -95,8 +103,8 @@ Command-and-control platform for wildfire incident commanders combining determin
 2. **Historical Memory** (Gemini) - Finds past fires in same region, provides learned tactics
 3. **Fire Behavior** (GPT-4o) - Analyzes spread patterns using physics + historical context
 4. **Risk Analysis** (GPT-4o) - Identifies threatened infrastructure using physics + history
-5. **Notification** (GPT-4o) - Generates 3 concise alerts (≤10 words each)
-6. **Recommendation** (GPT-4o) - Provides 1 tactical action (≤12 words) with rationale
+5. **Notification** (GPT-4o) - Generates 1-5 concise alerts (≤10 words each)
+6. **Recommendation** (GPT-4o) - Provides 1 tactical action (≤12 words), rationale, and confidence
 7. **Validator** - Enforces physics constraints; triggers replanning if violated (max 2 retries)
 
 ---
@@ -105,12 +113,17 @@ Command-and-control platform for wildfire incident commanders combining determin
 
 **Main Endpoint**
 - `POST /api/process-live-data/{time_index}` - Process timestamped fire data (index: 1-5)
-  - Returns: notifications (3 facts) + recommendation (1 action) + physics calculations
+  - Returns: notifications + recommendation + computed physics + history summary
 
 **Data Endpoints**
 - `GET /api/data/all` - Static map data (fire perimeter, terrain, infrastructure)
+- `GET /api/data/live/{time_index}` - Timestamped live data (index: 1-5)
 - `GET /api/notifications?limit=20&offset=0` - Agent-generated notifications
 - `GET /api/recommendations/latest` - Most recent recommendation
+- `GET /api/recommendations/all` - All recommendations
+- `GET /api/status` - Notification/recommendation system status
+- `POST /api/reset-notifications` - Clear notifications/recommendations in memory
+- `POST /api/analyze` - Direct full analysis endpoint (request body required)
 - `GET /health` - Health check
 - `WebSocket ws://localhost:8000/ws` - Real-time agent status streaming
 
@@ -177,15 +190,19 @@ containment/
 
 ## 🔑 Environment Variables
 
-Create `.env` in root:
+Create `.env` in the project root for backend keys:
 
 ```bash
 # Required
 OPENAI_API_KEY=your_key_here     # Multi-agent system (GPT-4o)
 GEMINI_API_KEY=your_key_here     # Historical memory (Gemini 1.5 Pro)
 
-# Optional
-VITE_API_URL=http://localhost:8000  # Backend URL (default: localhost:8000)
+```
+
+Optional frontend override in `frontend/.env.local`:
+
+```bash
+VITE_API_URL=http://localhost:8000
 ```
 
 ---
@@ -248,6 +265,6 @@ curl -X POST http://localhost:8000/api/process-live-data/1
 
 ## 🤝 Contributing
 
-Built for TreeHacks 2026. Open issues for questions or bugs.
+Built for TreeHacks. Open issues for questions or bugs.
 
 **Resources:** [FastAPI](https://fastapi.tiangolo.com/) | [OpenAI Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs) | [Gemini API](https://ai.google.dev/docs) | [Leaflet](https://leafletjs.com/) | [NWCG Fire Behavior](https://www.nwcg.gov/)
