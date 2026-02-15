@@ -4,10 +4,29 @@
 
 A real-time multi-agent decision support system for wildfire incident command, combining deterministic physics calculations with coordinated AI agents to provide tactical recommendations, threat assessments, and automated alerts.
 
-![TreeHacks 2026](https://img.shields.io/badge/TreeHacks-2026-green)
-![Python](https://img.shields.io/badge/Python-3.10+-blue)
-![React](https://img.shields.io/badge/React-19.2-61dafb)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)
+---
+
+## 🚀 Quick Start
+
+```bash
+# 1. Setup environment
+cp .env.example .env
+# Edit .env and add your API keys
+
+# 2. Start backend (Terminal 1)
+cd backend
+pip install -r requirements.txt
+python main.py
+
+# 3. Start frontend (Terminal 2)
+cd frontend
+npm install
+npm run dev
+
+# 4. Open http://localhost:5173
+```
+
+📚 **Full documentation**: See [`docs/QUICK_START.md`](docs/QUICK_START.md)
 
 ---
 
@@ -42,11 +61,10 @@ frontend/
 │   │   ├── FireMap.jsx          # Main map with fire perimeters, spread arrows
 │   │   ├── InsightsPanel.jsx    # Alert cards with acknowledgment system
 │   │   └── LayerControls.jsx    # Toggle fuel types, terrain, historical fires
-│   ├── data/
-│   │   ├── firePerimeter.js     # Current fire state + wind data
-│   │   ├── terrain.js           # Fuel types, ridgelines, elevation
-│   │   ├── infrastructure.js    # Communities, firebreaks, water resources
-│   │   └── historicalFires.js   # Past fire scars with resource escalation
+│   ├── hooks/
+│   │   └── useFireData.js       # Custom hook for fetching data from backend
+│   ├── services/
+│   │   └── dataService.js       # Backend API client
 │   └── App.jsx                  # Main app with alert management
 ```
 
@@ -338,3 +356,78 @@ Built for TreeHacks 2026. For issues or questions, please open an issue in the r
 ---
 
 **Built with ❤️ for wildfire incident commanders**
+
+---
+
+## 📚 Documentation
+
+- **[Quick Start](docs/QUICK_START.md)** - Get running in 5 minutes
+- **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Architecture overview
+- **[Data Consolidation](docs/DATA_CONSOLIDATION_README.md)** - Data flow and API
+- **[Setup Guide](docs/SETUP.md)** - Detailed installation instructions
+
+## 📁 Project Structure
+
+```
+containment/
+├── backend/              # Python/FastAPI backend
+│   ├── agents/          # Multi-agent AI system
+│   ├── data/            # JSON data files (single source of truth)
+│   ├── main.py          # API endpoints
+│   └── requirements.txt
+├── frontend/            # React/Vite frontend
+│   ├── src/
+│   │   ├── components/  # React components
+│   │   ├── hooks/       # Custom hooks (useFireData)
+│   │   └── services/    # API client (dataService)
+│   └── package.json
+├── docs/                # Documentation
+├── .env.example         # Environment template
+└── README.md           # This file
+```
+
+## 🔑 Environment Variables
+
+### Backend
+```bash
+GEMINI_API_KEY=your_gemini_key      # For historical memory
+OPENAI_API_KEY=your_openai_key      # For multi-agent system
+```
+
+### Frontend (optional)
+```bash
+VITE_API_URL=http://localhost:8000  # Backend API URL
+```
+
+## 🛠️ Development
+
+### Backend
+```bash
+cd backend
+python main.py                       # Runs on http://localhost:8000
+# API docs: http://localhost:8000/docs
+```
+
+### Frontend
+```bash
+cd frontend
+npm run dev                          # Runs on http://localhost:5173
+npm run build                        # Production build
+```
+
+## 🧪 Testing
+
+Verify the system is working:
+
+```bash
+# Backend health check
+curl http://localhost:8000/health
+
+# Get all data
+curl http://localhost:8000/api/data/all
+
+# Frontend: Open http://localhost:5173
+# - Map should show fire perimeter
+# - Alerts should appear in sidebar
+```
+

@@ -56,3 +56,28 @@ wheels/
 # Backend specific
 backend/*.db
 backend/*.sqlite
+
+# IDE and OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# Test coverage
+coverage/
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Build outputs
+*.pyc
+*.pyo
+dist-python/

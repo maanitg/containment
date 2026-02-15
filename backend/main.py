@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any
 import asyncio
+import json
+import os
 
 from agents.orchestrator import execute_agent_graph
 from agents.historical_memory import HistoricalMemory
@@ -20,6 +22,23 @@ app.add_middleware(
 
 # Initialize historical memory agent
 historical_memory = HistoricalMemory()
+
+# Data directory path
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+
+# Load data files
+def load_json_file(filename: str) -> dict | list:
+    """Load a JSON file from the data directory"""
+    file_path = os.path.join(DATA_DIR, filename)
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"WARNING: {filename} not found in data directory")
+        return {} if filename.endswith('.json') else []
+    except json.JSONDecodeError as e:
+        print(f"ERROR: Failed to parse {filename}: {e}")
+        return {} if filename.endswith('.json') else []
 
 # --- Request/Response Models ---
 
@@ -49,6 +68,36 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+@app.get("/api/data/fire-perimeter")
+async def get_fire_perimeter():
+    """Get current fire perimeter, wind data, and wind forecast"""
+    return load_json_file("fire_perimeter.json")
+
+@app.get("/api/data/infrastructure")
+async def get_infrastructure():
+    """Get communities, firebreaks, and water resources"""
+    return load_json_file("infrastructure.json")
+
+@app.get("/api/data/terrain")
+async def get_terrain():
+    """Get fuel types, elevation points, power lines, and ridge lines"""
+    return load_json_file("terrain.json")
+
+@app.get("/api/data/historical-fires")
+async def get_historical_fires():
+    """Get historical fires data (frontend version with perimeters)"""
+    return load_json_file("frontend_historical_fires.json")
+
+@app.get("/api/data/all")
+async def get_all_data():
+    """Get all data in a single request"""
+    return {
+        "firePerimeter": load_json_file("fire_perimeter.json"),
+        "infrastructure": load_json_file("infrastructure.json"),
+        "terrain": load_json_file("terrain.json"),
+        "historicalFires": load_json_file("frontend_historical_fires.json")
+    }
 
 @app.post("/api/analyze", response_model=FireAnalysisResponse)
 async def analyze_fire(request: FireAnalysisRequest):

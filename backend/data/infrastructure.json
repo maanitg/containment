@@ -1,0 +1,243 @@
+{
+  "communities": [
+    {
+      "name": "Pinecrest",
+      "population": 450,
+      "lat": 39.56,
+      "lng": -120.98,
+      "evacuationStatus": "Order",
+      "accessRoads": ["Hwy 89", "Pine Creek Rd"],
+      "shelterCapacity": 200
+    },
+    {
+      "name": "Cedar Flat",
+      "population": 1200,
+      "lat": 39.48,
+      "lng": -121.10,
+      "evacuationStatus": "None",
+      "accessRoads": ["Hwy 89", "Cedar Flat Rd"],
+      "shelterCapacity": 500
+    },
+    {
+      "name": "Ridgeview",
+      "population": 180,
+      "lat": 39.54,
+      "lng": -120.94,
+      "evacuationStatus": "Warning",
+      "accessRoads": ["Ridge Rd (single access)"],
+      "shelterCapacity": 0
+    },
+    {
+      "name": "Mill Creek",
+      "population": 320,
+      "lat": 39.50,
+      "lng": -120.92,
+      "evacuationStatus": "None",
+      "accessRoads": ["Mill Creek Rd", "County Rd 42"],
+      "shelterCapacity": 150
+    },
+    {
+      "name": "Summit Meadows",
+      "population": 85,
+      "lat": 39.60,
+      "lng": -121.02,
+      "evacuationStatus": "None",
+      "accessRoads": ["Summit Rd"],
+      "shelterCapacity": 0
+    },
+    {
+      "name": "Oakdale Junction",
+      "population": 2100,
+      "lat": 39.44,
+      "lng": -121.08,
+      "evacuationStatus": "None",
+      "accessRoads": ["Hwy 89", "Hwy 70", "Oakdale Blvd"],
+      "shelterCapacity": 800
+    }
+  ],
+  "firebreaks": [
+    {
+      "name": "Johnson Creek Fuel Break",
+      "width": 200,
+      "type": "Maintained shaded fuel break",
+      "lastMaintained": 2023,
+      "condition": "Good",
+      "geometry": {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [-121.012, 39.529],
+            [-121.010, 39.533],
+            [-121.006, 39.535],
+            [-121.003, 39.540],
+            [-120.999, 39.542],
+            [-120.996, 39.547],
+            [-120.994, 39.549],
+            [-120.990, 39.553],
+            [-120.987, 39.555],
+            [-120.983, 39.558],
+            [-120.980, 39.560]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Miller Road Dozer Line",
+      "width": 30,
+      "type": "Dozer line (from 2018 Basin Fire)",
+      "lastMaintained": 2018,
+      "condition": "Degraded - partial regrowth",
+      "geometry": {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [-121.062, 39.519],
+            [-121.057, 39.523],
+            [-121.053, 39.524],
+            [-121.049, 39.528],
+            [-121.044, 39.530],
+            [-121.041, 39.534],
+            [-121.036, 39.536],
+            [-121.032, 39.540],
+            [-121.028, 39.543],
+            [-121.024, 39.546],
+            [-121.020, 39.550]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Hwy 89 Corridor",
+      "width": 120,
+      "type": "Road corridor with cleared shoulders",
+      "lastMaintained": 2024,
+      "condition": "Good",
+      "geometry": {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [-121.120, 39.460],
+            [-121.115, 39.466],
+            [-121.108, 39.470],
+            [-121.104, 39.477],
+            [-121.098, 39.481],
+            [-121.093, 39.488],
+            [-121.086, 39.492],
+            [-121.082, 39.498],
+            [-121.076, 39.503],
+            [-121.070, 39.507],
+            [-121.065, 39.514],
+            [-121.058, 39.518],
+            [-121.053, 39.525],
+            [-121.047, 39.530],
+            [-121.042, 39.536],
+            [-121.036, 39.541],
+            [-121.030, 39.548],
+            [-121.024, 39.553],
+            [-121.018, 39.560],
+            [-121.011, 39.566],
+            [-121.005, 39.573],
+            [-121.000, 39.580]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Timber Ridge Fuel Reduction Project",
+      "width": 300,
+      "type": "Prescribed burn + mechanical thinning",
+      "lastMaintained": 2022,
+      "condition": "Good - reduced fuel load",
+      "geometry": {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [-121.042, 39.559],
+            [-121.036, 39.563],
+            [-121.030, 39.564],
+            [-121.024, 39.568],
+            [-121.018, 39.569],
+            [-121.012, 39.572],
+            [-121.006, 39.573],
+            [-121.000, 39.576],
+            [-120.994, 39.576],
+            [-120.988, 39.579],
+            [-120.982, 39.580]
+          ]
+        }
+      }
+    }
+  ],
+  "waterResources": [
+    {
+      "name": "Johnson Creek",
+      "type": "creek",
+      "flow": "Seasonal - low flow",
+      "geometry": {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [-121.08, 39.53],
+            [-121.06, 39.535],
+            [-121.04, 39.54],
+            [-121.02, 39.545],
+            [-121.00, 39.55],
+            [-120.98, 39.555]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Mill Creek",
+      "type": "river",
+      "flow": "Year-round, moderate flow",
+      "geometry": {
+        "type": "Feature",
+        "properties": {},
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [-121.00, 39.44],
+            [-120.98, 39.46],
+            [-120.96, 39.48],
+            [-120.94, 39.50],
+            [-120.92, 39.50]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Cedar Reservoir",
+      "type": "pond",
+      "capacity": "50,000 gallons",
+      "lat": 39.49,
+      "lng": -121.07,
+      "dippable": true
+    },
+    {
+      "name": "Summit Lake",
+      "type": "lake",
+      "capacity": "Helicopter accessible",
+      "lat": 39.59,
+      "lng": -121.01,
+      "dippable": true
+    },
+    {
+      "name": "Pine Creek Hydrant System",
+      "type": "hydrant",
+      "lat": 39.555,
+      "lng": -120.985,
+      "note": "Municipal hydrant system - 5 hydrants along Pine Creek Rd"
+    }
+  ]
+}

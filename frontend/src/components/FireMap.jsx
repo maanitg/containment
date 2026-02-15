@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -8,14 +8,6 @@ import {
   useMap,
 } from "react-leaflet";
 import L from "leaflet";
-import { currentFire, wind, windForecast } from "../data/firePerimeter";
-import { fuelTypes, ridgeLines, elevationPoints, powerLines } from "../data/terrain";
-import {
-  communities,
-  firebreaks,
-  waterResources,
-} from "../data/infrastructure";
-import { historicalFires } from "../data/historicalFires";
 
 // ─── Utilities ───
 
@@ -43,10 +35,7 @@ function getFireFront() {
   return { lat: frontPoint[1], lng: frontPoint[0] };
 }
 
-const fireFront = getFireFront();
 
-function estimateArrivalHours(distMiles) {
-  const spreadRate = wind.speed > 20 ? 2.5 : wind.speed > 10 ? 1.5 : 0.8;
   return distMiles / spreadRate;
 }
 
@@ -151,12 +140,7 @@ function getWindChangeAlerts() {
   return alerts;
 }
 
-export const windChangeAlerts = getWindChangeAlerts();
 
-// ─── Fire scar analysis ───
-
-function getFireScarAlerts() {
-  const scarAlerts = [];
   for (const fire of historicalFires) {
     const coords = fire.perimeter.geometry.coordinates[0];
     const inPath = isPolygonInFirePath(coords, fireFront, wind.direction);
@@ -182,12 +166,7 @@ function getFireScarAlerts() {
   return scarAlerts.sort((a, b) => a.distance - b.distance);
 }
 
-export const fireScarAlerts = getFireScarAlerts();
 
-// ─── Spread rate calculation per perimeter segment ───
-
-function getSpreadSegments() {
-  const coords = currentFire.activeFront.geometry.coordinates;
   const windRad = (wind.direction * Math.PI) / 180;
   const segments = [];
 
@@ -239,12 +218,7 @@ function getSpreadSegments() {
   return segments;
 }
 
-export const spreadSegments = getSpreadSegments();
 
-// ─── Generate AI Insights ───
-
-function getHistoricalEvacData(commName) {
-  const results = [];
   for (const fire of historicalFires) {
     const lesson = fire.keyLesson.toLowerCase();
     const tactics = fire.suppressionTactics.join(" ").toLowerCase();
@@ -316,30 +290,15 @@ function generateInsights() {
   return insights.slice(0, 4);
 }
 
-export const aiInsights = generateInsights();
+export 
 
-// ─── Precomputed data ───
 
-export const cityAlerts = communities
-  .map((c) => ({ ...c, distance: distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng), hours: estimateArrivalHours(distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng)), histFires: getHistoricalEvacData(c.name) }))
-  .filter((c) => c.distance < 8)
-  .sort((a, b) => a.distance - b.distance);
-
-export const powerLineAlerts = powerLines
-  .filter((pl) => isInFirePath(pl.geometry.geometry.coordinates, fireFront, wind.direction))
-  .map((pl) => {
-    const nearest = getNearestPointOnLine(pl.geometry.geometry.coordinates, fireFront.lat, fireFront.lng);
     const midIdx = Math.floor(pl.geometry.geometry.coordinates.length / 2);
     const mid = pl.geometry.geometry.coordinates[midIdx];
     return { ...pl, nearestDist: nearest.distance, hours: estimateArrivalHours(nearest.distance), alertLat: mid[1], alertLng: mid[0] };
   });
 
-export const uphillData = getUphillAlert();
 
-// ─── Sub-components ───
-
-function SpreadArrows() {
-  const map = useMap();
   const layerRef = useRef(null);
   useEffect(() => {
     if (layerRef.current) map.removeLayer(layerRef.current);
@@ -437,7 +396,67 @@ const waterIcon = L.divIcon({
 
 // ─── Main Component ───
 
-export default function FireMap({ layers, mapRef }) {
+export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
+  // Extract data from props
+  if (!data || !data.firePerimeter || !data.infrastructure || !data.terrain || !data.historicalFires) {
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#6b7280' }}>Loading map data...</div>;
+  }
+
+  const currentFire = data.firePerimeter.currentFire;
+  const wind = data.firePerimeter.wind;
+  const windForecast = data.firePerimeter.windForecast;
+  const fuelTypes = data.terrain.fuelTypes;
+  const ridgeLines = data.terrain.ridgeLines;
+  const elevationPoints = data.terrain.elevationPoints;
+  const powerLines = data.terrain.powerLines;
+  const communities = data.infrastructure.communities;
+  const firebreaks = data.infrastructure.firebreaks;
+  const waterResources = data.infrastructure.waterResources;
+  const historicalFires = data.historicalFires;
+
+
+  // Calculate derived data using useMemo
+  const fireFront = useMemo(() => getFireFront(), [currentFire, wind]);
+  
+  const windChangeAlerts = useMemo(() => getWindChangeAlerts(), [wind, windForecast]);
+  
+  const fireScarAlerts = useMemo(() => getFireScarAlerts(), [historicalFires, fireFront, wind]);
+  
+  const spreadSegments = useMemo(() => getSpreadSegments(), [currentFire, wind, elevationPoints]);
+  
+  const cityAlerts = useMemo(() => 
+    communities
+      .map((c) => ({ ...c, distance: distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng), hours: estimateArrivalHours(distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng)), histFires: getHistoricalEvacData(c.name) }))
+      .filter((c) => c.distance < 8)
+      .sort((a, b) => a.distance - b.distance),
+    [communities, fireFront, historicalFires]
+  );
+  
+  const powerLineAlerts = useMemo(() =>
+    powerLines
+      .filter((pl) => isInFirePath(pl.geometry.geometry.coordinates, fireFront, wind.direction))
+      .map((pl) => {
+        const nearest = getNearestPointOnLine(pl.geometry.geometry.coordinates, fireFront.lat, fireFront.lng);
+        const midIdx = Math.floor(pl.geometry.geometry.coordinates.length / 2);
+        const mid = pl.geometry.geometry.coordinates[midIdx];
+        return { ...pl, nearestDist: nearest.distance, hours: estimateArrivalHours(nearest.distance), alertLat: mid[1], alertLng: mid[0] };
+      }),
+    [powerLines, fireFront, wind]
+  );
+  
+  const uphillData = useMemo(() => getUphillAlert(), [fireFront, wind, elevationPoints]);
+  
+  const aiInsights = useMemo(() => generateInsights(), [
+    communities, fireFront, wind, windChangeAlerts, fireScarAlerts, powerLines, elevationPoints
+  ]);
+  
+  // Notify parent of insights
+  useEffect(() => {
+    if (onInsightsGenerated && aiInsights) {
+      onInsightsGenerated(aiInsights);
+    }
+  }, [aiInsights, onInsightsGenerated]);
+
   return (
     <>
       <div className="fire-overlay">

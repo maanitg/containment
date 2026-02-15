@@ -1,12 +1,4 @@
-import { useState, useEffect, useRef } from "react";
-import { currentFire, wind } from "../data/firePerimeter";
-import { fuelTypes } from "../data/terrain";
-import {
-  communities,
-  firebreaks,
-  waterResources,
-} from "../data/infrastructure";
-import { historicalFires } from "../data/historicalFires";
+import { useState, useEffect } from "react";
 
 // Calculate distance between two lat/lng points in miles
 function distanceMiles(lat1, lng1, lat2, lng2) {
@@ -22,7 +14,7 @@ function distanceMiles(lat1, lng1, lat2, lng2) {
 }
 
 // Get the "leading edge" of the fire in wind direction
-function getFireFront() {
+function getFireFront(currentFire, wind) {
   const coords = currentFire.perimeter.geometry.coordinates[0];
   const windRad = (wind.direction * Math.PI) / 180;
   let maxProj = -Infinity;
@@ -38,8 +30,13 @@ function getFireFront() {
 }
 
 // Generate insights from data
-function generateLocalInsights() {
-  const fireFront = getFireFront();
+function generateLocalInsights(data) {
+  const { currentFire, wind } = data.firePerimeter;
+  const { communities, firebreaks, waterResources } = data.infrastructure;
+  const { fuelTypes } = data.terrain;
+  const historicalFires = data.historicalFires;
+
+  const fireFront = getFireFront(currentFire, wind);
   const insights = [];
 
   // Critical proximities - communities
@@ -170,7 +167,9 @@ function getCardinalDirection(fromLat, fromLng, toLat, toLng) {
 }
 
 // Generate LLM-style insights (mock Claude API response)
-function generateLLMInsights(localInsights) {
+function generateLLMInsights(localInsights, data) {
+  const { wind } = data.firePerimeter;
+  
   // In production, this would call Claude API with the context
   // For now, we synthesize tactical intelligence from the data
   const llmInsights = [
@@ -235,27 +234,35 @@ const categoryLabels = {
   historical: "Historical Fire",
 };
 
-export default function InsightsPanel() {
+export default function InsightsPanel({ data }) {
   const [llmInsights, setLlmInsights] = useState([]);
   const [localInsights, setLocalInsights] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
 
   useEffect(() => {
+    if (!data) return;
+
     // Simulate loading
     setLoading(true);
-    const local = generateLocalInsights();
+    const local = generateLocalInsights(data);
     setLocalInsights(local);
 
     const timer = setTimeout(() => {
-      const llm = generateLLMInsights(local);
+      const llm = generateLLMInsights(local, data);
       setLlmInsights(llm);
       setLoading(false);
       setLastUpdate(new Date());
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [data]);
+
+  if (!data) {
+    return <div className="insights-panel">Loading...</div>;
+  }
+
+  const { currentFire, wind } = data.firePerimeter;
 
   return (
     <div className="insights-panel">

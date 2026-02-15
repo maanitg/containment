@@ -1,8 +1,12 @@
 import { useState, useCallback, useRef } from "react";
-import FireMap, { aiInsights } from "./components/FireMap";
+import FireMap from "./components/FireMap";
+import { useFireData } from "./hooks/useFireData";
 import "./App.css";
 
 export default function App() {
+  const { data, loading, error } = useFireData();
+  const [aiInsights, setAiInsights] = useState([]);
+
   const [layers, setLayers] = useState({
     fuel: true,
     firebreaks: true,
@@ -35,10 +39,39 @@ export default function App() {
   const activeInsights = aiInsights.filter((i) => !acknowledged[i.id]);
   const acknowledgedInsights = aiInsights.filter((i) => acknowledged[i.id]);
 
+  if (loading) {
+    return (
+      <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '24px', marginBottom: '10px' }}>🔥 Loading WildfireOS...</div>
+          <div style={{ color: '#6b7280' }}>Fetching fire data from backend</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="app" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <div style={{ textAlign: 'center', color: '#ef4444' }}>
+          <div style={{ fontSize: '24px', marginBottom: '10px' }}>⚠️ Error Loading Data</div>
+          <div>{error}</div>
+          <div style={{ marginTop: '20px', color: '#6b7280' }}>
+            Make sure the backend is running on http://localhost:8000
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return null;
+  }
+
   return (
     <div className="app">
       <div className="map-section">
-        <FireMap layers={layers} mapRef={mapRef} />
+        <FireMap layers={layers} mapRef={mapRef} data={data} onInsightsGenerated={setAiInsights} />
         <div className="map-legend">
           <div className="legend-section">
             <div className="legend-item">
