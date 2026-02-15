@@ -1,0 +1,28 @@
+{
+  "timestamp": "2024-08-12T20:00:00Z",
+  "time_label": "T+12h (20:00)",
+  "live_graph": {
+    "step": 4,
+    "total_burning": 310,
+    "total_burned": 1680
+  },
+  "wind_data": {
+    "speed": 32,
+    "direction": 285,
+    "directionLabel": "WNW",
+    "gusts": 48,
+    "forecastChange": "Peak winds continuing, expected decrease after midnight"
+  },
+  "environment_data": {
+    "slope": 28,
+    "terrain_vegetation": "brush",
+    "temperature_f": 89,
+    "humidity_percent": 15
+  },
+  "infrastructure_data": {
+    "nearby_towns": [
+      {"name": "Pinecrest", "distance_km": 5.9, "population": 450},
+      {"name": "Ridgeview", "distance_km": 2.8, "population": 180}
+    ]
+  }
+}

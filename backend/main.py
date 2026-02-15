@@ -8,6 +8,7 @@ import os
 
 from agents.orchestrator import execute_agent_graph
 from agents.historical_memory import HistoricalMemory
+from notification_manager import notification_manager
 
 app = FastAPI(title="WildfireOS Backend")
 
@@ -98,6 +99,71 @@ async def get_all_data():
         "terrain": load_json_file("terrain.json"),
         "historicalFires": load_json_file("frontend_historical_fires.json")
     }
+
+@app.get("/api/data/live/{time_index}")
+async def get_live_data(time_index: int):
+    """Get timestamped live data file (1-5)"""
+    if time_index < 1 or time_index > 5:
+        return {"error": "time_index must be between 1 and 5"}
+    return load_json_file(f"live_data_t{time_index}.json")
+
+@app.post("/api/process-live-data/{time_index}")
+async def process_live_data(time_index: int):
+    """Process a timestamped data file through agents and generate notifications"""
+    if time_index < 1 or time_index > 5:
+        return {"error": "time_index must be between 1 and 5"}
+
+    data = load_json_file(f"live_data_t{time_index}.json")
+    if not data:
+        return {"error": f"Could not load live_data_t{time_index}.json"}
+
+    result = await notification_manager.process_timestamped_data(data)
+    return result
+
+@app.get("/api/notifications")
+async def get_notifications(limit: int = 20, offset: int = 0):
+    """Get agent-generated notifications (newest first)"""
+    notifications = notification_manager.get_notifications(limit=limit, offset=offset)
+    print(f"[API] Returning {len(notifications)} notifications (total stored: {len(notification_manager.notifications)})")
+    return {
+        "notifications": notifications,
+        "total": len(notification_manager.notifications),
+        "limit": limit,
+        "offset": offset
+    }
+
+@app.get("/api/status")
+async def get_status():
+    """Get current notification system status"""
+    return {
+        "total_notifications": len(notification_manager.notifications),
+        "total_recommendations": len(notification_manager.recommendations),
+        "latest_notification": notification_manager.notifications[-1] if notification_manager.notifications else None,
+        "latest_recommendation": notification_manager.get_latest_recommendation()
+    }
+
+@app.get("/api/recommendations/latest")
+async def get_latest_recommendation():
+    """Get the most recent recommendation"""
+    recommendation = notification_manager.get_latest_recommendation()
+    if not recommendation:
+        return {"error": "No recommendations available yet"}
+    return recommendation
+
+@app.get("/api/recommendations/all")
+async def get_all_recommendations():
+    """Get all recommendations"""
+    recommendations = notification_manager.get_all_recommendations()
+    return {
+        "recommendations": recommendations,
+        "total": len(recommendations)
+    }
+
+@app.post("/api/reset-notifications")
+async def reset_notifications():
+    """Clear all notifications and recommendations"""
+    notification_manager.clear_all()
+    return {"message": "All notifications and recommendations cleared"}
 
 @app.post("/api/analyze", response_model=FireAnalysisResponse)
 async def analyze_fire(request: FireAnalysisRequest):
