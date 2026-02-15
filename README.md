@@ -1,4 +1,4 @@
-# ContainOS 🔥
+# ContainOS
 
 **AI-Powered Wildfire Intelligence & Command System**
 
@@ -6,7 +6,7 @@ A real-time multi-agent decision support system for wildfire incident command, c
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # 1. Setup environment
@@ -35,7 +35,7 @@ npm run dev
 
 ---
 
-## 🎯 Overview
+## Overview
 
 Command-and-control platform for wildfire incident commanders combining deterministic physics with coordinated AI agents.
 
@@ -49,7 +49,7 @@ Command-and-control platform for wildfire incident commanders combining determin
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ### Multi-Agent Pipeline
 
@@ -109,7 +109,7 @@ Command-and-control platform for wildfire incident commanders combining determin
 
 ---
 
-## 📡 API Reference
+## API Reference
 
 **Main Endpoint**
 - `POST /api/process-live-data/{time_index}` - Process timestamped fire data (index: 1-5)
@@ -131,7 +131,7 @@ Command-and-control platform for wildfire incident commanders combining determin
 
 ---
 
-## 🧪 How It Works
+## How It Works
 
 ### Historical Context Integration
 
@@ -153,12 +153,12 @@ Physics engine establishes ground truth; AI outputs must comply or trigger repla
 if slope > 20: threat = "CRITICAL"
 if town_distance < 5km: threat = "CRITICAL"
 
-# AI outputs "ELEVATED" → ❌ Validator rejects
+# AI outputs "ELEVATED" → Validator rejects
 
 # System forces replan:
 # "Physics violation: deterministic calculates CRITICAL but you output ELEVATED. You MUST escalate."
 
-# AI retries → outputs "CRITICAL" → ✅ Approved
+# AI retries → outputs "CRITICAL" → Approved
 ```
 
 **Result:** No AI hallucinations. All recommendations grounded in fire physics.
@@ -188,7 +188,7 @@ containment/
 
 ---
 
-## 🔑 Environment Variables
+## Environment Variables
 
 Create `.env` in the project root for backend keys:
 
@@ -207,7 +207,7 @@ VITE_API_URL=http://localhost:8000
 
 ---
 
-## 📊 Tech Stack
+## Tech Stack
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
@@ -220,7 +220,7 @@ VITE_API_URL=http://localhost:8000
 
 ---
 
-## 🛠️ Development
+## Development
 
 **Backend** (http://localhost:8000)
 ```bash
@@ -247,7 +247,7 @@ curl -X POST http://localhost:8000/api/process-live-data/1
 
 ---
 
-## 🌐 Offline-First Support
+## Offline-First Support
 
 **Features:**
 - Real-time connectivity detection with visual banner
@@ -263,7 +263,7 @@ curl -X POST http://localhost:8000/api/process-live-data/1
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Built for TreeHacks. Open issues for questions or bugs.
 
