@@ -3,7 +3,16 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Validate Gemini API key is configured
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    print("⚠️  WARNING: GEMINI_API_KEY not found in environment variables!")
+    print("   The system will use fallback historical summaries")
+else:
+    print(f"✅ Gemini API key configured (ends with ...{GEMINI_API_KEY[-4:]})")
+
+genai.configure(api_key=GEMINI_API_KEY)
 
 SAMPLE_DATA_PATH = os.path.join(
     os.path.dirname(__file__), "..", "data", "historical_fires.json"
@@ -43,8 +52,12 @@ class HistoricalMemory:
 
             TASK:
             Find the closest historical analogs to these conditions.
-            Write a strict, 3-sentence summary of how those past fires behaved and
-            what infrastructure they threatened. Do not output JSON, just the summary.
+            PRIORITIZATION (in order):
+            1. GEOGRAPHY FIRST - Prioritize fires in the same region/location (same area of California)
+            2. Then consider similar wind, slope, and vegetation conditions
+
+            Write a strict, 3-sentence summary of how those geographically-close past fires
+            behaved and what infrastructure they threatened. Do not output JSON, just the summary.
             """
 
             # Try gemini-1.5-flash first (more reliable), then other models

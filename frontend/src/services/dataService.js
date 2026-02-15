@@ -69,15 +69,30 @@ export const dataService = {
 
   async processLiveData(timeIndex) {
     try {
+      console.log(`[dataService] Processing time index ${timeIndex}...`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
       const response = await fetch(`${API_BASE_URL}/api/process-live-data/${timeIndex}`, {
-        method: 'POST'
+        method: 'POST',
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
-        throw new Error(`Failed to process live data: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Failed to process live data: ${response.status} ${response.statusText} - ${errorText}`);
       }
-      return await response.json();
+      const data = await response.json();
+      console.log(`[dataService] Successfully processed time index ${timeIndex}`);
+      return data;
     } catch (error) {
-      console.error('Error processing live data:', error);
+      if (error.name === 'AbortError') {
+        console.error(`[dataService] Timeout processing time index ${timeIndex}`);
+        throw new Error(`Timeout processing time index ${timeIndex}`);
+      }
+      console.error('[dataService] Error processing live data:', error);
       throw error;
     }
   },

@@ -7,12 +7,21 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 load_dotenv()
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Validate API key is configured
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    print("⚠️  WARNING: OPENAI_API_KEY not found in environment variables!")
+    print("   Please set it in your .env file or environment")
+else:
+    print(f"✅ OpenAI API key configured (ends with ...{OPENAI_API_KEY[-4:]})")
+
+client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 MODEL_NAME = "gpt-4o-2024-08-06"
 MAX_RETRIES = 2
 RATE_LIMIT_RETRY_ATTEMPTS = 3
-RATE_LIMIT_BACKOFF_BASE = 20  # seconds
+RATE_LIMIT_BACKOFF_BASE = 10  # seconds (reduced from 20 for faster processing)
 
 # --- DATA CONTRACTS ---
 
@@ -29,7 +38,7 @@ class NotificationItem(BaseModel):
     fact: str = Field(description="Concise factual statement (max 10 words). Example: 'Wind speed increasing to 32mph from NW'")
 
 class AgentNotifications(BaseModel):
-    alerts: list[NotificationItem] = Field(description="Exactly 3 brief factual notifications.")
+    alerts: list[NotificationItem] = Field(description="Between 1-5 brief factual notifications based on relevance.", min_items=1, max_items=5)
 
 class AgentRecommendation(BaseModel):
     action: str = Field(description="Single recommended action (max 12 words).")
@@ -181,7 +190,7 @@ async def _run_notif_agent(fire_data: FireAnalysis, risk_data: RiskAnalysis) -> 
         completion = await client.beta.chat.completions.parse(
             model=MODEL_NAME,
             messages=[
-                {"role": "system", "content": "Generate 3 brief factual alerts. Each must be a concise fact (max 10 words). Examples: 'Fire approaching Ridgeview - 2.8km away', 'Wind gusts reaching 48mph from WNW', 'Dead timber zone ahead in fire path'."},
+                {"role": "system", "content": "Generate 1-5 brief factual alerts based on what's most relevant and critical right now. Prioritize: imminent threats, critical infrastructure at risk, dangerous fire behavior changes, resource needs. Each alert must be concise (max 10 words). Examples: 'Fire approaching Ridgeview - 2.8km away', 'Wind gusts reaching 48mph from WNW', 'Dead timber zone ahead in fire path'. Only include what incident commanders need to know NOW - quality over quantity."},
                 {"role": "user", "content": f"FIRE: {fire_data.model_dump_json()}\nRISK: {risk_data.model_dump_json()}"}
             ],
             response_format=AgentNotifications,
@@ -238,12 +247,14 @@ async def execute_agent_graph(
 
     # MINIMAL FIX: keep semantics "2 retries after first attempt"
     while attempts < (MAX_RETRIES + 1):
+        print(f"[Orchestrator] Starting agent execution (attempt {attempts + 1}/{MAX_RETRIES + 1})...")
         status_tracker["level_1_agents"] = "running"
         fire_result, risk_result = await asyncio.gather(
             _run_fire_agent(processed_graph, history_summary),
             _run_risk_agent(processed_graph, history_summary, validator_feedback)  # pass feedback
         )
         status_tracker["level_1_agents"] = "complete"
+        print(f"[Orchestrator] Level 1 agents complete (Fire + Risk)")
 
         status_tracker["level_2_agents"] = "running"
         notif_result, rec_result = await asyncio.gather(
@@ -251,6 +262,7 @@ async def execute_agent_graph(
             _run_rec_agent(fire_result, risk_result, current_previous_rec, validator_feedback)  # use updated prev
         )
         status_tracker["level_2_agents"] = "complete"
+        print(f"[Orchestrator] Level 2 agents complete. Generated {len(notif_result.alerts)} notification(s)")
 
         status_tracker["validation"] = "running"
         await asyncio.sleep(0.5)
@@ -276,8 +288,9 @@ async def execute_agent_graph(
         attempts += 1
 
     status_tracker["validation"] = "error"
+    print("[Orchestrator] Max retries exhausted. Returning fallback response.")
     return {
-        "notifications": [{"headline": "System Alert", "explanation": "Agent validation failed. Reverting to manual command."}],
-        "recommendation": {"consideration": "Manual Override Required", "rationale": "Physics constraints violated.", "confidence_score": 0},
+        "notifications": [{"fact": "System error - validation failed after retries"}],
+        "recommendation": {"action": "Manual override required", "rationale": "Physics validation failed", "confidence_score": 0},
         "computed_physics": processed_graph["computed_physics"]
     }

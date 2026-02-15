@@ -17,7 +17,7 @@
   position: absolute;
   top: 12px;
   right: 12px;
-  bottom: 12px;
+  bottom: 12px; /* Full height now that recommendation is moved */
   width: 340px;
   z-index: 1000;
   display: flex;
@@ -36,10 +36,10 @@
   align-items: center;
   gap: 10px;
   padding: 8px 4px 10px;
-  font-size: 13px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0.02em;
   color: white;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7), 0 0 2px rgba(0, 0, 0, 0.5);
 }
@@ -62,10 +62,31 @@
 .sidebar-list {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 0 0 8px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-height: calc(100vh - 120px); /* Ensure scrollability */
+}
+
+/* Webkit scrollbar styling for notification list */
+.sidebar-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.sidebar-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.sidebar-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .sidebar-empty {
@@ -75,6 +96,27 @@
   color: rgba(255, 255, 255, 0.6);
   font-style: italic;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.processing-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 0.3px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .sidebar-processing {
@@ -740,6 +782,32 @@
   text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;
 }
 
+.scar-label-relevant {
+  font-size: 12px; /* Increased size */
+  font-weight: 800; /* Bolder */
+  color: #d97706;
+  text-shadow: 0 0 4px white, 0 0 4px white, 0 0 5px white, 0 0 10px rgba(251, 191, 36, 0.7);
+  background: rgba(251, 191, 36, 0.15); /* Add subtle background */
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.scar-label-relevant-active {
+  font-size: 13px; /* Even larger */
+  font-weight: 900; /* Extra bold */
+  color: #dc2626;
+  text-shadow: 0 0 4px white, 0 0 4px white, 0 0 5px white, 0 0 12px rgba(239, 68, 68, 0.8);
+  background: rgba(239, 68, 68, 0.2); /* Add prominent background */
+  padding: 3px 8px;
+  border-radius: 4px;
+  animation: glow 2s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
 /* ─── Spread direction labels ─── */
 
 .spread-label {
@@ -770,10 +838,10 @@
 /* ─── Recommendation Card ─── */
 
 .recommendation-card {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  max-width: 350px;
+  position: absolute;
+  top: 70px; /* Below fire overlay */
+  left: 12px;
+  max-width: 380px;
   padding: 16px 18px;
   background: rgba(15, 23, 42, 0.92);
   backdrop-filter: blur(24px);
@@ -798,6 +866,7 @@
   justify-content: space-between;
   margin-bottom: 12px;
   gap: 8px;
+  padding-right: 32px; /* Make room for close button */
 }
 
 .recommendation-badge {
@@ -845,4 +914,28 @@
   text-transform: uppercase;
   letter-spacing: 0.6px;
   font-weight: 600;
+}
+
+.recommendation-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.recommendation-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #f1f5f9;
 }

@@ -1,17 +1,17 @@
 {
   "timestamp": "2024-08-12T08:00:00Z",
-  "time_label": "T+0h (08:00)",
+  "time_label": "T+0min (08:00)",
   "live_graph": {
     "step": 1,
-    "total_burning": 120,
-    "total_burned": 450
+    "total_burning": 25,
+    "total_burned": 5
   },
   "wind_data": {
-    "speed": 18,
+    "speed": 12,
     "direction": 225,
     "directionLabel": "SW",
-    "gusts": 28,
-    "forecastChange": "Winds shifting to W at 15mph by 1800hrs"
+    "gusts": 18,
+    "forecastChange": "Winds expected to increase to 18mph by 08:30"
   },
   "environment_data": {
     "slope": 15,

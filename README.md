@@ -37,22 +37,15 @@ npm run dev
 
 ## 🎯 Overview
 
-WildfireOS is a command-and-control platform designed for wildfire incident commanders. It integrates:
+Command-and-control platform for wildfire incident commanders combining deterministic physics with coordinated AI agents.
 
-- **Real-time fire behavior physics** - Deterministic calculations for spread velocity, threat levels
-- **Multi-agent AI orchestration** - 6 specialized agents (GPT-4o + Gemini) coordinating analysis
-- **Closed-loop validation** - AI outputs must pass physics constraints or trigger automatic replanning
-- **Interactive mapping** - Leaflet-based visualization with fire perimeters, terrain, infrastructure
-- **Historical memory** - Context-aware recommendations based on similar past incidents
-
-### Key Features
-
-✅ **Physics-grounded AI** - Agents cannot contradict deterministic fire behavior calculations
-✅ **Automatic error correction** - Failed validation triggers agent replanning (max 2 retries)
-✅ **Real-time streaming** - WebSocket support for live status updates as agents work
-✅ **Historical context** - Gemini 1.5 Pro analyzes past fires with similar conditions
-✅ **Tactical alerts** - Concise factual notifications (max 10 words each)
-✅ **Offline-first support** - Works without network connectivity using cached data
+**Core Capabilities:**
+- **Physics-grounded AI** - Deterministic calculations validate all AI outputs; violations trigger automatic replanning
+- **Geographic historical memory** - Gemini analyzes past fires from the same region to inform tactics
+- **Multi-agent orchestration** - 6 specialized agents (GPT-4o + Gemini) coordinate analysis in real-time
+- **Closed-loop validation** - Failed physics checks force agent replanning (max 2 retries)
+- **Interactive mapping** - Leaflet visualization with fire perimeters, terrain, infrastructure
+- **Offline-first** - Works without connectivity using cached data and IndexedDB
 
 ---
 
@@ -61,101 +54,101 @@ WildfireOS is a command-and-control platform designed for wildfire incident comm
 ### Multi-Agent Pipeline
 
 ```
-Live Fire Data → Graph Physics Engine → Deterministic Calculations
-                                              ↓
-                    ┌────────────────────────┴────────────────────────┐
-                    ↓                                                  ↓
-            Fire Behavior Agent                              Risk Analysis Agent
-              (GPT-4o)                                           (GPT-4o)
-                    ↓                                                  ↓
-                    └────────────────┬───────────────────────────────┘
-                                     ↓
-                    ┌────────────────┴────────────────┐
-                    ↓                                  ↓
-          Notification Agent                  Recommendation Agent
-            (GPT-4o)                               (GPT-4o)
-         Generates 3 facts                     Provides 1 action
-                    ↓                                  ↓
-                    └────────────────┬────────────────┘
-                                     ↓
-                                 Validator
-                          (Physics constraint check)
-                                     ↓
-                              Output to Frontend
+                          Live Fire Data
+                                ↓
+                    Graph Physics Engine
+                  (deterministic calculations)
+                                ↓
+        ┌───────────────────────┴───────────────────────┐
+        ↓                                                ↓
+  Historical Memory                                Physics Data
+   (Gemini 1.5 Pro)                              (spread, threat)
+  Finds regional fires                                  ↓
+        ↓                                                ↓
+        └───────────────────┬────────────────────────────┘
+                            ↓
+            ┌───────────────┴───────────────┐
+            ↓                                ↓
+    Fire Behavior Agent             Risk Analysis Agent
+         (GPT-4o)                        (GPT-4o)
+  Physics + History               Physics + History
+            ↓                                ↓
+            └───────────────┬────────────────┘
+                            ↓
+            ┌───────────────┴───────────────┐
+            ↓                                ↓
+    Notification Agent              Recommendation Agent
+         (GPT-4o)                        (GPT-4o)
+      3 factual alerts                 1 tactical action
+            ↓                                ↓
+            └───────────────┬────────────────┘
+                            ↓
+                        Validator
+                (physics constraint check)
+                            ↓
+                     Frontend Output
 ```
 
-**Agents:**
+**Agent Roles:**
 
-1. **Graph Physics Engine** - Computes base spread velocity, slope/vegetation multipliers, baseline threat
-2. **Fire Behavior Agent** (GPT-4o) - Analyzes wind, slope, vegetation effects on spread
-3. **Risk Analysis Agent** (GPT-4o) - Identifies threatened infrastructure, assigns threat levels
-4. **Notification Agent** (GPT-4o) - Generates 3 concise factual alerts (max 10 words each)
-5. **Recommendation Agent** (GPT-4o) - Provides single tactical action (max 12 words) with brief rationale
-6. **Historical Memory Agent** (Gemini 1.5 Pro) - Finds analogous past fires, contextualizes behavior
-7. **Validator** - Ensures AI outputs obey physics (critical threats must match deterministic baseline)
+1. **Graph Physics Engine** - Computes spread velocity, threat levels using deterministic formulas
+2. **Historical Memory** (Gemini) - Finds past fires in same region, provides learned tactics
+3. **Fire Behavior** (GPT-4o) - Analyzes spread patterns using physics + historical context
+4. **Risk Analysis** (GPT-4o) - Identifies threatened infrastructure using physics + history
+5. **Notification** (GPT-4o) - Generates 3 concise alerts (≤10 words each)
+6. **Recommendation** (GPT-4o) - Provides 1 tactical action (≤12 words) with rationale
+7. **Validator** - Enforces physics constraints; triggers replanning if violated (max 2 retries)
 
 ---
 
 ## 📡 API Reference
 
-### Main Processing Endpoint
+**Main Endpoint**
+- `POST /api/process-live-data/{time_index}` - Process timestamped fire data (index: 1-5)
+  - Returns: notifications (3 facts) + recommendation (1 action) + physics calculations
 
-**POST** `/api/process-live-data/{time_index}`
+**Data Endpoints**
+- `GET /api/data/all` - Static map data (fire perimeter, terrain, infrastructure)
+- `GET /api/notifications?limit=20&offset=0` - Agent-generated notifications
+- `GET /api/recommendations/latest` - Most recent recommendation
+- `GET /health` - Health check
+- `WebSocket ws://localhost:8000/ws` - Real-time agent status streaming
 
-Processes timestamped fire data through the agent pipeline (time_index: 1-5)
-
-**Response:**
-```json
-{
-  "notifications": [
-    {
-      "id": 1,
-      "fact": "Fire approaching Ridgeview - 2.8km away",
-      "urgency": "critical",
-      "time_label": "T+0h (08:00)"
-    }
-  ],
-  "recommendation": {
-    "action": "Deploy crews to Johnson Creek firebreak immediately",
-    "rationale": "Fire will reach location in 3 hours, last defensible position",
-    "confidence_score": 85,
-    "time_label": "T+0h (08:00)"
-  }
-}
-```
-
-### Other Endpoints
-
-- **GET** `/api/data/all` - Get all static map data (fire perimeter, terrain, infrastructure)
-- **GET** `/api/notifications?limit=20&offset=0` - Get agent-generated notifications
-- **GET** `/api/recommendations/latest` - Get most recent recommendation
-- **GET** `/health` - Health check
-- **WebSocket** `ws://localhost:8000/ws` - Real-time streaming updates
-
-Full API documentation: http://localhost:8000/docs
+**Full docs:** http://localhost:8000/docs
 
 ---
 
-## 🧪 How It Works: Closed-Loop Validation
+## 🧪 How It Works
 
-WildfireOS uses a **deterministic physics engine** to establish ground truth, then validates all AI outputs against it:
+### Historical Context Integration
+
+**Geographic-first matching:**
+1. System loads past fires from `historical_fires.json` (behavior, tactics, resources)
+2. Gemini prioritizes **same region** (e.g., Northern California), then matches wind/slope/vegetation
+3. Generates 3-sentence summary of how those regional fires behaved
+4. Context provided to Fire Behavior & Risk Analysis agents for informed predictions
+
+**Example output:**
+> "The 2022 Canyon Creek Fire in Northern California exhibited rapid uphill spread through chaparral under 25mph NE winds on 30° slopes, requiring defensive positioning ahead of the fire front. Resources escalated 5x when fire reached chaparral belt, with dozer lines on ridgetops proving most effective."
+
+### Closed-Loop Validation
+
+Physics engine establishes ground truth; AI outputs must comply or trigger replanning:
 
 ```python
 # Deterministic baseline
 if slope > 20: threat = "CRITICAL"
 if town_distance < 5km: threat = "CRITICAL"
 
-# AI Risk Agent outputs: "ELEVATED"
-# ❌ Validator catches contradiction
+# AI outputs "ELEVATED" → ❌ Validator rejects
 
-# System forces replan with feedback:
+# System forces replan:
 # "Physics violation: deterministic calculates CRITICAL but you output ELEVATED. You MUST escalate."
 
-# AI tries again with corrective feedback → outputs "CRITICAL"
-# ✅ Validator approves
+# AI retries → outputs "CRITICAL" → ✅ Approved
 ```
 
-This prevents AI hallucination and ensures recommendations are grounded in fire behavior physics.
+**Result:** No AI hallucinations. All recommendations grounded in fire physics.
 
 ---
 
@@ -163,139 +156,98 @@ This prevents AI hallucination and ensures recommendations are grounded in fire 
 
 ```
 containment/
-├── backend/              # Python/FastAPI backend
+├── backend/
 │   ├── agents/
-│   │   ├── orchestrator.py          # Multi-agent coordination
-│   │   └── historical_memory.py     # Gemini historical context
-│   ├── data/                         # JSON data files
-│   ├── main.py                       # API endpoints
-│   ├── notification_manager.py       # Notification storage
-│   └── requirements.txt
-├── frontend/            # React/Vite frontend
+│   │   ├── orchestrator.py          # Multi-agent coordination + physics engine
+│   │   └── historical_memory.py     # Gemini geographic matching
+│   ├── data/                         # Fire perimeter, terrain, historical fires (JSON)
+│   ├── main.py                       # FastAPI endpoints + WebSocket
+│   └── notification_manager.py       # Stores agent outputs
+├── frontend/
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── FireMap.jsx          # Leaflet map
-│   │   │   └── LayerControls.jsx    # Map controls
-│   │   ├── services/
-│   │   │   └── dataService.js       # API client
-│   │   ├── offline/                 # Offline-first support
-│   │   ├── App.jsx                  # Main app
-│   │   └── App.css                  # Styles
+│   │   ├── components/               # FireMap (Leaflet), LayerControls
+│   │   ├── services/                 # API client
+│   │   ├── offline/                  # IndexedDB + Service Worker
+│   │   └── App.jsx                   # Main UI
 │   └── package.json
-├── docs/                # Additional documentation
-└── README.md           # This file
+└── README.md
 ```
 
 ---
 
 ## 🔑 Environment Variables
 
-Create a `.env` file in the root directory:
+Create `.env` in root:
 
 ```bash
 # Required
-OPENAI_API_KEY=your_openai_key      # For multi-agent system
-GEMINI_API_KEY=your_gemini_key      # For historical memory
+OPENAI_API_KEY=your_key_here     # Multi-agent system (GPT-4o)
+GEMINI_API_KEY=your_key_here     # Historical memory (Gemini 1.5 Pro)
 
-# Optional Frontend
-VITE_API_URL=http://localhost:8000  # Backend API URL (defaults to localhost:8000)
+# Optional
+VITE_API_URL=http://localhost:8000  # Backend URL (default: localhost:8000)
 ```
 
 ---
 
 ## 📊 Tech Stack
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| Frontend | React 19 + Vite | UI framework |
-| Mapping | Leaflet + react-leaflet | Interactive fire maps |
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Frontend | React 19 + Vite + Leaflet | UI + interactive maps |
 | Backend | FastAPI + Uvicorn | API server |
-| AI Orchestration | OpenAI GPT-4o | Multi-agent reasoning |
-| Historical Memory | Google Gemini 1.5 Pro | Context window for past fires |
-| Validation | Pydantic + Custom Logic | Type safety + physics checks |
-| Real-time | WebSockets | Streaming updates |
-| Offline | IndexedDB + Service Worker | Offline-first support |
+| AI Agents | GPT-4o + Gemini 1.5 Pro | Multi-agent reasoning + historical memory |
+| Validation | Pydantic + Physics Engine | Type safety + constraint checks |
+| Real-time | WebSockets | Live agent status streaming |
+| Offline | IndexedDB + Service Worker | Network-first caching |
 
 ---
 
 ## 🛠️ Development
 
-### Running the Backend
-
+**Backend** (http://localhost:8000)
 ```bash
-cd backend
-python main.py
+cd backend && python main.py
+# API docs: /docs | WebSocket: ws://localhost:8000/ws
 ```
-- API: http://localhost:8000
-- Docs: http://localhost:8000/docs
-- WebSocket: ws://localhost:8000/ws
 
-### Running the Frontend
-
+**Frontend** (http://localhost:5173)
 ```bash
-cd frontend
-npm run dev          # Development server
-npm run build        # Production build
-npm run preview      # Preview production build
+cd frontend && npm run dev
+# Build: npm run build | Preview: npm run preview
 ```
-- App: http://localhost:5173
 
-### Testing
-
+**Testing**
 ```bash
-# Backend health check
+# Health check
 curl http://localhost:8000/health
 
-# Get all static data
-curl http://localhost:8000/api/data/all
-
-# Process timestamped data
+# Process timestamped fire data (1-5)
 curl -X POST http://localhost:8000/api/process-live-data/1
 
-# Frontend: Open http://localhost:5173
-# - Map should show fire perimeter
-# - Notifications should appear in sidebar after processing
-# - Recommendation appears in bottom-right card
+# Frontend: Verify map shows fire perimeter, notifications appear in sidebar
 ```
 
 ---
 
 ## 🌐 Offline-First Support
 
-The app includes a complete offline-first system:
+**Features:**
+- Real-time connectivity detection with visual banner
+- IndexedDB cache (network-first strategy with fallback)
+- Service worker caches app shell + map tiles
+- Write queue for offline requests (auto-replay on reconnect)
 
-- **Connectivity detection** - Real-time network status monitoring
-- **Offline banner** - Visual indicator when offline
-- **IndexedDB cache** - Network-first strategy with fallback to cached data
-- **Service worker** - Caches app shell and map tiles
-- **Write queue** - Queues requests made while offline for replay on reconnect
-
-### Testing Offline Mode
-
-1. Load the app online and navigate the map to cache tiles
-2. Open DevTools > Network > check "Offline"
-3. Verify offline banner appears at top
-4. Navigate the map - cached tiles display
-5. Uncheck "Offline" - banner disappears, "Back online" toast shows
+**Test offline mode:**
+1. Load app online, navigate map to cache tiles
+2. DevTools > Network > Enable "Offline"
+3. Verify offline banner appears, cached tiles still render
+4. Disable "Offline" → "Back online" toast appears
 
 ---
 
 ## 🤝 Contributing
 
-Built for TreeHacks 2026. For issues or questions, please open an issue in the repository.
+Built for TreeHacks 2026. Open issues for questions or bugs.
 
----
-
-## 🔗 Resources
-
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [OpenAI Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs)
-- [Google Gemini API](https://ai.google.dev/docs)
-- [Leaflet Maps](https://leafletjs.com/)
-- [Wildfire Behavior Fundamentals](https://www.nwcg.gov/)
-
----
-
-**Built with ❤️ for wildfire incident commanders**
-
-TreeHacks 2026 Project
+**Resources:** [FastAPI](https://fastapi.tiangolo.com/) | [OpenAI Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs) | [Gemini API](https://ai.google.dev/docs) | [Leaflet](https://leafletjs.com/) | [NWCG Fire Behavior](https://www.nwcg.gov/)

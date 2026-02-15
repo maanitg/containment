@@ -12,6 +12,7 @@ export default function App() {
   const [showAllNotifications, setShowAllNotifications] = useState(false);
   const [processingData, setProcessingData] = useState(false);
   const [recommendation, setRecommendation] = useState(null);
+  const [dismissedRecommendation, setDismissedRecommendation] = useState(false);
 
   const [layers, setLayers] = useState({
     fuel: true,
@@ -26,25 +27,27 @@ export default function App() {
   const [acknowledged, setAcknowledged] = useState({});
   const [showHistory, setShowHistory] = useState(false);
   const mapRef = useRef(null);
+  const hasProcessed = useRef(false); // Track if we've already processed data
 
   // Process timestamped data through agents on mount
   useEffect(() => {
     async function processAllTimestampedData() {
-      if (processingData) return;
+      if (processingData || hasProcessed.current) return;
+      hasProcessed.current = true;
 
       setProcessingData(true);
       console.log("🔥 Processing timestamped data through agents...");
 
       try {
-        // Process timestamped files (2 by default for faster demo, change to 5 for full run)
-        const numFilesToProcess = 2; // Change to 5 for full dataset
-        console.log(`Processing ${numFilesToProcess} timestamped data files...`);
+        // Process timestamped files (5 files = first 4 minutes of fire)
+        const numFilesToProcess = 5; // Full dataset: T+0min through T+4min
+        console.log(`Processing ${numFilesToProcess} timestamped data files (1-minute intervals)...`);
 
         for (let i = 1; i <= numFilesToProcess; i++) {
           console.log(`Processing time index ${i}...`);
 
           try {
-            console.log(`⏳ Sending file ${i} to backend...`);
+            console.log(`Sending file ${i} to backend...`);
             await dataService.processLiveData(i);
             console.log(`✅ Backend processed file ${i}`);
 
@@ -66,6 +69,7 @@ export default function App() {
               const rec = await dataService.fetchLatestRecommendation();
               if (rec && !rec.error) {
                 setRecommendation(rec);
+                setDismissedRecommendation(false); // Show new recommendation
                 console.log(`✅ Recommendation loaded:`, rec);
                 console.log(`   - Action: ${rec.action || rec.consideration}`);
                 console.log(`   - Rationale: ${rec.rationale || 'N/A'}`);
@@ -80,26 +84,31 @@ export default function App() {
             // Continue to next file even if this one fails
           }
 
-          // Add delay between processing to avoid rate limits (each file makes ~4 API calls)
-          if (i < 5) {
-            console.log(`Waiting 25s before processing next file...`);
-            await new Promise(resolve => setTimeout(resolve, 25000)); // 25s delay
+          // Add delay between processing to avoid rate limits (each file makes ~5 API calls)
+          if (i < numFilesToProcess) {
+            console.log(`Waiting 15s before processing next minute to avoid rate limits...`);
+            await new Promise(resolve => setTimeout(resolve, 15000)); // 15s delay between minutes
           }
         }
 
-        console.log(`✅ All files processed! Total notifications: ${notifications.length}`);
+        console.log(`✅ All files processed successfully!`);
+
+        // Fetch final notification count
+        const finalNotifResponse = await dataService.fetchNotifications(100, 0);
+        console.log(`📊 Final notification count: ${finalNotifResponse?.notifications?.length || 0}`);
       } catch (err) {
-        console.error("Error processing timestamped data:", err);
+        console.error("❌ Error processing timestamped data:", err);
+        console.error("Error stack:", err.stack);
       } finally {
         setProcessingData(false);
       }
     }
 
-    // Only process once data is loaded
-    if (data && !processingData && notifications.length === 0) {
+    // Only process once data is loaded and we haven't processed yet
+    if (data && !processingData && !hasProcessed.current) {
       processAllTimestampedData();
     }
-  }, [data, processingData, notifications.length]);
+  }, [data, processingData]);
 
   const handleToggle = useCallback((key) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -208,7 +217,7 @@ export default function App() {
             {[
               { key: "fuel", label: "Fuel Types", color: "#2d6a2e" },
               { key: "terrain", label: "Ridgelines", color: "#78716c" },
-              { key: "historical", label: "Past Fires", color: "#9ca3af" },
+              { key: "historical", label: "Past Fires (★ = Same Region)", color: "#f59e0b" },
               { key: "water", label: "Water", color: "#3b82f6" },
             ].map(({ key, label, color }) => (
               <button
@@ -230,18 +239,11 @@ export default function App() {
       <div className="sidebar">
         <div className="sidebar-header">
           <span className="sidebar-count">{notifications.length}</span>
-          NOTIFICATIONS
-          {processingData && <span style={{ fontSize: '12px', marginLeft: '8px' }}>⏳</span>}
+          Notifications
+          {processingData && <span className="processing-pill">Processing...</span>}
         </div>
 
         <div className="sidebar-list">
-          {processingData && (
-            <div className="sidebar-processing">
-              <div className="processing-spinner"></div>
-              <div className="processing-text">Processing Fire Data</div>
-              <div className="processing-subtext">Analyzing conditions through AI agents...</div>
-            </div>
-          )}
 
           {(showAllNotifications ? notifications : notifications.slice(0, 3)).map((notification) => (
             <div
@@ -273,8 +275,15 @@ export default function App() {
         </div>
       </div>
 
-      {recommendation && (
+      {recommendation && !dismissedRecommendation && (
         <div className="recommendation-card">
+          <button
+            className="recommendation-close"
+            onClick={() => setDismissedRecommendation(true)}
+            title="Dismiss recommendation"
+          >
+            ×
+          </button>
           <div className="recommendation-header">
             <span className="recommendation-badge">RECOMMENDATION</span>
             <span className="recommendation-confidence">{recommendation.confidence_score}% confidence</span>

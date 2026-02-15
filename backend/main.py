@@ -41,6 +41,39 @@ def load_json_file(filename: str) -> dict | list:
         print(f"ERROR: Failed to parse {filename}: {e}")
         return {} if filename.endswith('.json') else []
 
+# Load fire metadata once at startup
+def get_fire_metadata() -> dict:
+    """Get current fire name and location"""
+    try:
+        fire_perimeter = load_json_file("fire_perimeter.json")
+        if fire_perimeter and "currentFire" in fire_perimeter:
+            current_fire = fire_perimeter["currentFire"]
+            center = current_fire.get("center", [39.52, -121.05])
+            # Determine region from coordinates (simplified - lat, lon)
+            lat, lon = center[0], center[1]
+            if 39.0 <= lat <= 40.5 and -122.0 <= lon <= -120.0:
+                region = "Northern California"
+            elif 38.0 <= lat <= 39.0:
+                region = "Central California"
+            else:
+                region = "California"
+            return {
+                "name": current_fire.get("name", "Unknown Fire"),
+                "location": region,
+                "coordinates": center
+            }
+    except Exception as e:
+        print(f"WARNING: Could not load fire metadata: {e}")
+
+    # Default fallback
+    return {
+        "name": "Cedar Ridge Fire",
+        "location": "Northern California",
+        "coordinates": [39.52, -121.05]
+    }
+
+FIRE_METADATA = get_fire_metadata()
+
 # --- Request/Response Models ---
 
 class FireAnalysisRequest(BaseModel):
@@ -171,8 +204,10 @@ async def analyze_fire(request: FireAnalysisRequest):
     Main analysis endpoint.
     Accepts current fire conditions and returns AI-generated insights.
     """
-    # Get historical context
+    # Get historical context (include fire location for geographic matching)
     current_conditions = {
+        "fire_name": FIRE_METADATA["name"],
+        "location": FIRE_METADATA["location"],
         "wind": request.wind_data,
         "environment": request.environment_data,
         "infrastructure": request.infrastructure_data,
@@ -240,8 +275,10 @@ async def websocket_endpoint(websocket: WebSocket):
             # Receive fire data from frontend
             data = await websocket.receive_json()
 
-            # Get historical context
+            # Get historical context (include fire location for geographic matching)
             current_conditions = {
+                "fire_name": FIRE_METADATA["name"],
+                "location": FIRE_METADATA["location"],
                 "wind": data.get("wind_data", {}),
                 "environment": data.get("environment_data", {}),
                 "infrastructure": data.get("infrastructure_data", {}),

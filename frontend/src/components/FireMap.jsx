@@ -83,6 +83,14 @@ function isPolygonInFirePath(polyCoords, fireFrontPt, windDir) {
   return angleDiff < Math.PI / 2.5 && dist < 10;
 }
 
+// Check if a historical fire is geographically relevant (same region as current fire)
+function isGeographicallyRelevant(historicalFireCoords, currentFireCenter) {
+  const histCentroid = polygonCentroid(historicalFireCoords);
+  const distance = distanceMiles(currentFireCenter[0], currentFireCenter[1], histCentroid.lat, histCentroid.lng);
+  // Consider fires within 30 miles as "same region" (increased for better visibility)
+  return distance < 30;
+}
+
 function getUphillAlert(fireFront, wind, elevationPoints) {
   const spreadRad = ((wind.direction + 180) * Math.PI) / 180;
   const pointsAhead = elevationPoints.filter((pt) => {
@@ -520,39 +528,74 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
   const waterResources = data.infrastructure.waterResources;
   const historicalFires = data.historicalFires;
 
+  // Log historical fires for debugging
+  if (historicalFires && historicalFires.length > 0) {
+    console.log(`📍 Displaying ${historicalFires.length} historical fires on map`);
+  }
+
   const fireFront = useMemo(() => getFireFront(currentFire, wind), [currentFire, wind]);
 
   const windChangeAlerts = useMemo(() => getWindChangeAlerts(wind, windForecast), [wind, windForecast]);
 
-  const fireScarAlerts = useMemo(() => getFireScarAlerts(historicalFires, fireFront, wind), [historicalFires, fireFront, wind]);
+  // Optimize: Only calculate if historical fires layer is visible
+  const fireScarAlerts = useMemo(() => {
+    if (!layers.historical) return [];
+    return getFireScarAlerts(historicalFires, fireFront, wind);
+  }, [historicalFires, fireFront, wind, layers.historical]);
 
-  const spreadSegments = useMemo(() => getSpreadSegments(currentFire, wind, elevationPoints), [currentFire, wind, elevationPoints]);
+  // Optimize: Reduce calculations by checking if data exists
+  const spreadSegments = useMemo(() => {
+    if (!currentFire?.activeFront?.geometry?.coordinates) return [];
+    return getSpreadSegments(currentFire, wind, elevationPoints);
+  }, [currentFire, wind, elevationPoints]);
 
+  // Optimize: Avoid double distance calculation
   const cityAlerts = useMemo(() =>
     communities
-      .map((c) => ({ ...c, distance: distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng), hours: estimateArrivalHours(distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng)), histFires: getHistoricalEvacData(c.name, historicalFires) }))
+      .map((c) => {
+        const distance = distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng);
+        return {
+          ...c,
+          distance,
+          hours: estimateArrivalHours(distance),
+          histFires: getHistoricalEvacData(c.name, historicalFires)
+        };
+      })
       .filter((c) => c.distance < 8)
       .sort((a, b) => a.distance - b.distance),
     [communities, fireFront, historicalFires]
   );
 
-  const powerLineAlerts = useMemo(() =>
-    powerLines
+  // Optimize: Only calculate if powerlines layer is visible
+  const powerLineAlerts = useMemo(() => {
+    if (!layers.powerlines || powerLines.length === 0) return [];
+    return powerLines
       .filter((pl) => isInFirePath(pl.geometry.geometry.coordinates, fireFront, wind.direction))
       .map((pl) => {
         const nearest = getNearestPointOnLine(pl.geometry.geometry.coordinates, fireFront.lat, fireFront.lng);
         const midIdx = Math.floor(pl.geometry.geometry.coordinates.length / 2);
         const mid = pl.geometry.geometry.coordinates[midIdx];
         return { ...pl, nearestDist: nearest.distance, hours: estimateArrivalHours(nearest.distance), alertLat: mid[1], alertLng: mid[0] };
-      }),
-    [powerLines, fireFront, wind]
-  );
+      });
+  }, [powerLines, fireFront, wind, layers.powerlines]);
 
-  const uphillData = useMemo(() => getUphillAlert(fireFront, wind, elevationPoints), [fireFront, wind, elevationPoints]);
+  // Optimize: Only calculate if terrain layer is visible
+  const uphillData = useMemo(() => {
+    if (!layers.terrain) return null;
+    return getUphillAlert(fireFront, wind, elevationPoints);
+  }, [fireFront, wind, elevationPoints, layers.terrain]);
 
-  const firebreakData = useMemo(() => getFirebreakAnalysis(firebreaks, fireFront, wind, currentFire), [firebreaks, fireFront, wind, currentFire]);
+  // Optimize: Only calculate if firebreaks layer is visible
+  const firebreakData = useMemo(() => {
+    if (!layers.firebreaks || firebreaks.length === 0) return [];
+    return getFirebreakAnalysis(firebreaks, fireFront, wind, currentFire);
+  }, [firebreaks, fireFront, wind, currentFire, layers.firebreaks]);
 
-  const downedLineData = useMemo(() => getDownedLineRisks(powerLines, fireFront, wind, currentFire), [powerLines, fireFront, wind, currentFire]);
+  // Optimize: Only calculate if powerlines layer is visible
+  const downedLineData = useMemo(() => {
+    if (!layers.powerlines || powerLines.length === 0) return [];
+    return getDownedLineRisks(powerLines, fireFront, wind, currentFire);
+  }, [powerLines, fireFront, wind, currentFire, layers.powerlines]);
 
   const aiInsights = useMemo(() => generateInsights(
     communities, fireFront, wind, windChangeAlerts, fireScarAlerts, powerLines, elevationPoints, firebreakData, downedLineData
@@ -589,16 +632,53 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
         {layers.historical && historicalFires.map((fire, i) => {
           const coords = fire.perimeter.geometry.coordinates[0];
           const inPath = isPolygonInFirePath(coords, fireFront, wind.direction);
+          const isRelevant = isGeographicallyRelevant(coords, currentFire.center);
+
+          // Styling priority: relevant + in path > relevant > in path > default
+          let fillColor, fillOpacity, color, weight, dashArray;
+          if (isRelevant && inPath) {
+            // Most relevant: same region AND in fire path - VERY PROMINENT
+            fillColor = "#dc2626";
+            fillOpacity = 0.45; // Increased opacity
+            color = "#ef4444";
+            weight = 4; // Thicker border
+            dashArray = undefined;
+          } else if (isRelevant) {
+            // Relevant: same region - PROMINENT
+            fillColor = "#f59e0b";
+            fillOpacity = 0.35; // Increased opacity
+            color = "#fbbf24";
+            weight = 3;
+            dashArray = "4 4";
+          } else if (inPath) {
+            // In path but different region
+            fillColor = "#b45309";
+            fillOpacity = 0.2;
+            color = "#d97706";
+            weight = 2;
+            dashArray = undefined;
+          } else {
+            // Not relevant - more subdued
+            fillColor = "#78716c";
+            fillOpacity = 0.08; // Reduced to be less distracting
+            color = "#9ca3af";
+            weight = 1;
+            dashArray = "8 4";
+          }
+
           return (
             <GeoJSON key={`hist-${i}`} data={fire.perimeter} style={{
-              fillColor: inPath ? "#b45309" : "#78716c",
-              fillOpacity: inPath ? 0.3 : 0.15,
-              color: inPath ? "#d97706" : "#6b7280",
-              weight: inPath ? 3 : 2,
-              dashArray: inPath ? undefined : "6 3",
+              fillColor,
+              fillOpacity,
+              color,
+              weight,
+              dashArray,
             }}>
               <Popup>
-                <div className="popup-header">{fire.name} ({fire.year})</div>
+                <div className="popup-header">
+                  {fire.name} ({fire.year})
+                  {isRelevant && <span style={{marginLeft:6,fontSize:11,fontWeight:600,color:"#f59e0b"}}>★ Same Region</span>}
+                </div>
                 <div className="popup-stat">{fire.acres.toLocaleString()} ac · {fire.containedInDays}d · {fire.cause}</div>
                 <div className="popup-stat" style={{marginTop:4,fontStyle:"italic"}}>{fire.keyLesson}</div>
                 {fire.resources && (
@@ -620,9 +700,24 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
           const coords = fire.perimeter.geometry.coordinates[0];
           const cent = polygonCentroid(coords);
           const inPath = isPolygonInFirePath(coords, fireFront, wind.direction);
+          const isRelevant = isGeographicallyRelevant(coords, currentFire.center);
+
+          // Different styling based on relevance
+          let labelClass = "";
+          let labelSuffix = "";
+          if (isRelevant && inPath) {
+            labelClass = "scar-label-relevant-active";
+            labelSuffix = " ★";
+          } else if (isRelevant) {
+            labelClass = "scar-label-relevant";
+            labelSuffix = " ★";
+          } else if (inPath) {
+            labelClass = "scar-label-active";
+          }
+
           const labelIcon = L.divIcon({
             className: "map-alert-icon",
-            html: `<div class="scar-label ${inPath ? "scar-label-active" : ""}">${fire.name} (${fire.year})<br/>${fire.acres.toLocaleString()} ac</div>`,
+            html: `<div class="scar-label ${labelClass}">${fire.name} (${fire.year})${labelSuffix}<br/>${fire.acres.toLocaleString()} ac</div>`,
             iconSize: [0, 0], iconAnchor: [50, 10],
           });
           return <Marker key={`scar-label-${i}`} position={[cent.lat, cent.lng]} icon={labelIcon} interactive={false} />;
