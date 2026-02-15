@@ -33,6 +33,7 @@ class AgentNotifications(BaseModel):
 
 class AgentRecommendation(BaseModel):
     action: str = Field(description="Single recommended action (max 12 words).")
+    rationale: str = Field(description="VERY brief explanation (max 15 words) why this action is critical.")
     confidence_score: int = Field(description="0-100 score of plan viability.")
 
 # --- DETERMINISTIC GRAPH LOGIC ---
@@ -201,7 +202,7 @@ async def _run_rec_agent(
         completion = await client.beta.chat.completions.parse(
             model=MODEL_NAME,
             messages=[
-                {"role": "system", "content": "Provide ONE concise tactical action (max 12 words). Example: 'Deploy crews to Johnson Creek firebreak immediately'. Obey validator feedback."},
+                {"role": "system", "content": "Provide ONE concise tactical action (max 12 words) with a VERY brief rationale (max 15 words) explaining why it's critical. Example action: 'Deploy crews to Johnson Creek firebreak immediately'. Example rationale: 'Fire will reach this location in 3 hours, last defensible position'. Obey validator feedback."},
                 {"role": "user", "content": f"FIRE: {fire_data.model_dump_json()}\nRISK: {risk_data.model_dump_json()}\n{turn_context}{feedback_context}"}
             ],
             response_format=AgentRecommendation,

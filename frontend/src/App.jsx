@@ -1,12 +1,17 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import FireMap from "./components/FireMap";
 import { useFireData } from "./hooks/useFireData";
+import { dataService } from "./services/dataService";
 import OfflineBanner from "./offline/OfflineBanner";
 import "./App.css";
 
 export default function App() {
   const { data, loading, error } = useFireData();
   const [aiInsights, setAiInsights] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [showAllNotifications, setShowAllNotifications] = useState(false);
+  const [processingData, setProcessingData] = useState(false);
+  const [recommendation, setRecommendation] = useState(null);
 
   const [layers, setLayers] = useState({
     fuel: true,
@@ -21,6 +26,80 @@ export default function App() {
   const [acknowledged, setAcknowledged] = useState({});
   const [showHistory, setShowHistory] = useState(false);
   const mapRef = useRef(null);
+
+  // Process timestamped data through agents on mount
+  useEffect(() => {
+    async function processAllTimestampedData() {
+      if (processingData) return;
+
+      setProcessingData(true);
+      console.log("🔥 Processing timestamped data through agents...");
+
+      try {
+        // Process timestamped files (2 by default for faster demo, change to 5 for full run)
+        const numFilesToProcess = 2; // Change to 5 for full dataset
+        console.log(`Processing ${numFilesToProcess} timestamped data files...`);
+
+        for (let i = 1; i <= numFilesToProcess; i++) {
+          console.log(`Processing time index ${i}...`);
+
+          try {
+            console.log(`⏳ Sending file ${i} to backend...`);
+            await dataService.processLiveData(i);
+            console.log(`✅ Backend processed file ${i}`);
+
+            // Fetch and update notifications after EACH file completes
+            console.log(`📥 Fetching notifications from backend...`);
+            const notifResponse = await dataService.fetchNotifications(100, 0);
+            console.log(`📥 Received response:`, notifResponse);
+
+            if (notifResponse && notifResponse.notifications) {
+              setNotifications(notifResponse.notifications);
+              console.log(`✅ File ${i} complete: ${notifResponse.notifications.length} total notifications now visible`);
+            } else {
+              console.warn(`⚠️ No notifications in response:`, notifResponse);
+            }
+
+            // Fetch latest recommendation
+            try {
+              console.log(`📥 Fetching latest recommendation...`);
+              const rec = await dataService.fetchLatestRecommendation();
+              if (rec && !rec.error) {
+                setRecommendation(rec);
+                console.log(`✅ Recommendation loaded:`, rec);
+                console.log(`   - Action: ${rec.action || rec.consideration}`);
+                console.log(`   - Rationale: ${rec.rationale || 'N/A'}`);
+                console.log(`   - Confidence: ${rec.confidence_score}%`);
+              }
+            } catch (err) {
+              console.log(`⚠️ No recommendation yet:`, err.message);
+            }
+          } catch (err) {
+            console.error(`❌ Error processing file ${i}:`, err);
+            console.error(`Full error details:`, err);
+            // Continue to next file even if this one fails
+          }
+
+          // Add delay between processing to avoid rate limits (each file makes ~4 API calls)
+          if (i < 5) {
+            console.log(`Waiting 25s before processing next file...`);
+            await new Promise(resolve => setTimeout(resolve, 25000)); // 25s delay
+          }
+        }
+
+        console.log(`✅ All files processed! Total notifications: ${notifications.length}`);
+      } catch (err) {
+        console.error("Error processing timestamped data:", err);
+      } finally {
+        setProcessingData(false);
+      }
+    }
+
+    // Only process once data is loaded
+    if (data && !processingData && notifications.length === 0) {
+      processAllTimestampedData();
+    }
+  }, [data, processingData, notifications.length]);
 
   const handleToggle = useCallback((key) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -150,71 +229,69 @@ export default function App() {
 
       <div className="sidebar">
         <div className="sidebar-header">
-          <span className="sidebar-count">{activeInsights.length}</span>
-          ACTIVE ALERTS
+          <span className="sidebar-count">{notifications.length}</span>
+          NOTIFICATIONS
+          {processingData && <span style={{ fontSize: '12px', marginLeft: '8px' }}>⏳</span>}
         </div>
 
         <div className="sidebar-list">
-          {activeInsights.map((insight) => (
+          {processingData && (
+            <div className="sidebar-processing">
+              <div className="processing-spinner"></div>
+              <div className="processing-text">Processing Fire Data</div>
+              <div className="processing-subtext">Analyzing conditions through AI agents...</div>
+            </div>
+          )}
+
+          {(showAllNotifications ? notifications : notifications.slice(0, 3)).map((notification) => (
             <div
-              key={insight.id}
-              className={`alert-card alert-${insight.urgency}`}
-              onClick={() => handleFlyTo(insight)}
+              key={notification.id}
+              className={`notification-card notification-${notification.urgency}`}
             >
-              <div className="alert-status-bar" />
-              <div className="alert-body">
-                <div className="alert-title">{insight.title}</div>
-                <div className="alert-summary">{insight.summary}</div>
+              <div className="notification-indicator" />
+              <div className="notification-content">
+                <div className="notification-text">
+                  {notification.fact || notification.headline || 'No content'}
+                </div>
+                <div className="notification-time">
+                  {notification.time_label}
+                </div>
               </div>
-              <button
-                className="alert-ack-btn"
-                onClick={(e) => handleAcknowledge(e, insight.id)}
-                title="Acknowledge"
-              >
-                ACK
-              </button>
             </div>
           ))}
-          {activeInsights.length === 0 && (
-            <div className="sidebar-empty">All alerts acknowledged</div>
+          {notifications.length === 0 && !processingData && (
+            <div className="sidebar-empty">No notifications</div>
+          )}
+          {notifications.length > 3 && (
+            <button
+              className="show-more-btn"
+              onClick={() => setShowAllNotifications(!showAllNotifications)}
+            >
+              {showAllNotifications ? '▲ Show Less' : `▼ Show ${notifications.length - 3} More`}
+            </button>
           )}
         </div>
-
-        {acknowledgedInsights.length > 0 && (
-          <div className="sidebar-history">
-            <button
-              className="history-toggle"
-              onClick={() => setShowHistory((p) => !p)}
-            >
-              {showHistory ? "Hide" : "Show"} acknowledged ({acknowledgedInsights.length})
-            </button>
-            {showHistory && (
-              <div className="history-list">
-                {acknowledgedInsights.map((insight) => (
-                  <div
-                    key={insight.id}
-                    className="alert-card alert-acknowledged"
-                    onClick={() => handleFlyTo(insight)}
-                  >
-                    <div className="alert-status-bar alert-status-acked" />
-                    <div className="alert-body">
-                      <div className="alert-title">{insight.title}</div>
-                      <div className="alert-summary">{insight.summary}</div>
-                    </div>
-                    <button
-                      className="alert-unack-btn"
-                      onClick={(e) => handleAcknowledge(e, insight.id)}
-                      title="Reactivate"
-                    >
-                      ↩
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
+
+      {recommendation && (
+        <div className="recommendation-card">
+          <div className="recommendation-header">
+            <span className="recommendation-badge">RECOMMENDATION</span>
+            <span className="recommendation-confidence">{recommendation.confidence_score}% confidence</span>
+          </div>
+          <div className="recommendation-action">
+            {recommendation.action || recommendation.consideration || 'No action'}
+          </div>
+          {recommendation.rationale && (
+            <div className="recommendation-rationale">
+              {recommendation.rationale}
+            </div>
+          )}
+          <div className="recommendation-time">
+            {recommendation.time_label}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
