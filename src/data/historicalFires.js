@@ -11,6 +11,14 @@ export const historicalFires = [
       "Backfire from Timber Ridge",
       "Air tanker drops on northeast flank",
     ],
+    resources: {
+      initialEngines: 6,
+      peakEngines: 14,
+      initialCrews: 2,
+      peakCrews: 8,
+      airSupport: true,
+      escalationNote: "Resources doubled on day 2 when fire crossed into timber zone",
+    },
     keyLesson:
       "Miller Road dozer line was critical containment feature on west side",
     perimeter: {
@@ -50,6 +58,14 @@ export const historicalFires = [
       "Hand line along Johnson Creek",
       "Structure protection for Pinecrest",
     ],
+    resources: {
+      initialEngines: 4,
+      peakEngines: 8,
+      initialCrews: 2,
+      peakCrews: 5,
+      airSupport: false,
+      escalationNote: "Contained quickly — fuel break held, minimal escalation",
+    },
     keyLesson:
       "Johnson Creek fuel break held effectively; Pinecrest evacuation took 4 hours via Hwy 89",
     perimeter: {
@@ -87,6 +103,14 @@ export const historicalFires = [
       "Helicopter bucket drops from Summit Lake",
       "Mutual aid from 3 neighboring forests",
     ],
+    resources: {
+      initialEngines: 8,
+      peakEngines: 42,
+      initialCrews: 4,
+      peakCrews: 22,
+      airSupport: true,
+      escalationNote: "5x resource surge on day 3 — dead timber zone caused extreme spotting, mutual aid from 3 forests",
+    },
     keyLesson:
       "Ridgeview single-access road caused dangerous evacuation delays; dead timber zone produced extreme fire behavior with 1-mile spotting",
     perimeter: {
