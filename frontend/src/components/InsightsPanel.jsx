@@ -13,10 +13,11 @@ function distanceMiles(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Get the "leading edge" of the fire in wind direction
+// Get the "leading edge" of the fire in spread direction
+// wind.direction is the "from" bearing (225 = from SW), fire spreads opposite (+180°)
 function getFireFront(currentFire, wind) {
   const coords = currentFire.perimeter.geometry.coordinates[0];
-  const windRad = (wind.direction * Math.PI) / 180;
+  const windRad = ((wind.direction + 180) * Math.PI) / 180;
   let maxProj = -Infinity;
   let frontPoint = coords[0];
   for (const c of coords) {

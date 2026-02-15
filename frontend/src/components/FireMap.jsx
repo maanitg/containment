@@ -23,19 +23,22 @@ function distanceMiles(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function getFireFront() {
+function getFireFront(currentFire, wind) {
   const coords = currentFire.perimeter.geometry.coordinates[0];
-  const windRad = (wind.direction * Math.PI) / 180;
+  // wind.direction is the "from" bearing (225 = from SW).
+  // Fire spreads in the opposite direction (toward NE), so add 180°.
+  const spreadRad = ((wind.direction + 180) * Math.PI) / 180;
   let maxProj = -Infinity;
   let frontPoint = coords[0];
   for (const c of coords) {
-    const proj = c[1] * Math.cos(windRad) + c[0] * Math.sin(windRad);
+    const proj = c[1] * Math.cos(spreadRad) + c[0] * Math.sin(spreadRad);
     if (proj > maxProj) { maxProj = proj; frontPoint = c; }
   }
   return { lat: frontPoint[1], lng: frontPoint[0] };
 }
 
-
+function estimateArrivalHours(distMiles) {
+  const spreadRate = 0.5; // mph estimate
   return distMiles / spreadRate;
 }
 
@@ -50,12 +53,12 @@ function getNearestPointOnLine(coords, lat, lng) {
 }
 
 function isInFirePath(coords, fireFrontPt, windDir) {
-  const windRad = (windDir * Math.PI) / 180;
+  const dirRad = ((windDir + 180) * Math.PI) / 180;
   for (const c of coords) {
     const dLat = c[1] - fireFrontPt.lat;
     const dLng = c[0] - fireFrontPt.lng;
     const angle = Math.atan2(dLng, dLat);
-    const angleDiff = Math.abs(angle - windRad);
+    const angleDiff = Math.abs(angle - dirRad);
     const dist = distanceMiles(fireFrontPt.lat, fireFrontPt.lng, c[1], c[0]);
     if (angleDiff < Math.PI / 3 && dist < 8) return true;
   }
@@ -70,23 +73,23 @@ function polygonCentroid(coords) {
 }
 
 function isPolygonInFirePath(polyCoords, fireFrontPt, windDir) {
-  const windRad = (windDir * Math.PI) / 180;
+  const dirRad = ((windDir + 180) * Math.PI) / 180;
   const cent = polygonCentroid(polyCoords);
   const dLat = cent.lat - fireFrontPt.lat;
   const dLng = cent.lng - fireFrontPt.lng;
   const angle = Math.atan2(dLng, dLat);
-  const angleDiff = Math.abs(angle - windRad);
+  const angleDiff = Math.abs(angle - dirRad);
   const dist = distanceMiles(fireFrontPt.lat, fireFrontPt.lng, cent.lat, cent.lng);
   return angleDiff < Math.PI / 2.5 && dist < 10;
 }
 
-function getUphillAlert() {
-  const windRad = (wind.direction * Math.PI) / 180;
+function getUphillAlert(fireFront, wind, elevationPoints) {
+  const spreadRad = ((wind.direction + 180) * Math.PI) / 180;
   const pointsAhead = elevationPoints.filter((pt) => {
     const dLat = pt.lat - fireFront.lat;
     const dLng = pt.lng - fireFront.lng;
     const angle = Math.atan2(dLng, dLat);
-    const angleDiff = Math.abs(angle - windRad);
+    const angleDiff = Math.abs(angle - spreadRad);
     const dist = distanceMiles(fireFront.lat, fireFront.lng, pt.lat, pt.lng);
     return angleDiff < Math.PI / 3 && dist < 5;
   });
@@ -105,13 +108,12 @@ function getUphillAlert() {
 
 // ─── Wind change detection ───
 
-function getWindChangeAlerts() {
+function getWindChangeAlerts(wind, windForecast) {
   const alerts = [];
   for (const fc of windForecast) {
     const dirShift = Math.abs(fc.direction - wind.direction);
     const speedDelta = fc.speed - wind.speed;
 
-    // Major speed increase (>10mph jump)
     if (speedDelta >= 10) {
       alerts.push({
         id: `wind-surge-${fc.time}`,
@@ -123,7 +125,6 @@ function getWindChangeAlerts() {
         summary: `Wind surge at ${fc.time}: ${wind.speed}→${fc.speed}mph (G${fc.gusts}). Fire spread rate will increase dramatically.`,
       });
     }
-    // Significant direction shift (>30°)
     if (dirShift > 30) {
       alerts.push({
         id: `wind-shift-${fc.time}`,
@@ -140,7 +141,8 @@ function getWindChangeAlerts() {
   return alerts;
 }
 
-
+function getFireScarAlerts(historicalFires, fireFront, wind) {
+  const scarAlerts = [];
   for (const fire of historicalFires) {
     const coords = fire.perimeter.geometry.coordinates[0];
     const inPath = isPolygonInFirePath(coords, fireFront, wind.direction);
@@ -166,26 +168,24 @@ function getWindChangeAlerts() {
   return scarAlerts.sort((a, b) => a.distance - b.distance);
 }
 
+// ─── Spread rate calculation per perimeter segment ───
 
-  const windRad = (wind.direction * Math.PI) / 180;
+function getSpreadSegments(currentFire, wind, elevationPoints) {
+  const spreadRad = ((wind.direction + 180) * Math.PI) / 180;
+  const coords = currentFire.activeFront.geometry.coordinates;
   const segments = [];
 
   for (let i = 0; i < coords.length - 1; i++) {
     const midLat = (coords[i][1] + coords[i + 1][1]) / 2;
     const midLng = (coords[i][0] + coords[i + 1][0]) / 2;
 
-    // Direction this segment faces (outward normal)
     const dLat = coords[i + 1][1] - coords[i][1];
     const dLng = coords[i + 1][0] - coords[i][0];
-    // Normal pointing outward (perpendicular, right-hand)
     const normalAngle = Math.atan2(dLat, -dLng);
 
-    // How aligned is this normal with wind direction
-    const alignment = Math.cos(normalAngle - windRad);
-    // Spread rate relative to wind alignment (0-1)
+    const alignment = Math.cos(normalAngle - spreadRad);
     const rate = Math.max(0, alignment);
 
-    // Also factor in terrain slope
     const nearestElev = elevationPoints.reduce((best, pt) => {
       const d = distanceMiles(midLat, midLng, pt.lat, pt.lng);
       return d < best.d ? { d, pt } : best;
@@ -195,22 +195,20 @@ function getWindChangeAlerts() {
     let slopeFactor = 1;
     if (nearestElev.pt && nearestElev.d < 3) {
       const gain = nearestElev.pt.elevation - originElev.elevation;
-      if (gain > 0) slopeFactor = 1 + (gain / 2000); // uphill = faster
+      if (gain > 0) slopeFactor = 1 + (gain / 2000);
     }
 
     const finalRate = rate * slopeFactor;
 
     if (finalRate > 0.15) {
-      // Arrow length proportional to spread rate
       const arrowLen = 0.008 + finalRate * 0.016;
-      const endLat = midLat + Math.cos(windRad) * arrowLen;
-      const endLng = midLng + Math.sin(windRad) * arrowLen;
+      const endLat = midLat + Math.cos(spreadRad) * arrowLen;
+      const endLng = midLng + Math.sin(spreadRad) * arrowLen;
 
       segments.push({
         start: [midLat, midLng],
         end: [endLat, endLng],
         rate: finalRate,
-        // Categorize
         category: finalRate > 0.7 ? "fast" : finalRate > 0.4 ? "moderate" : "slow",
       });
     }
@@ -218,7 +216,8 @@ function getWindChangeAlerts() {
   return segments;
 }
 
-
+function getHistoricalEvacData(commName, historicalFires) {
+  const results = [];
   for (const fire of historicalFires) {
     const lesson = fire.keyLesson.toLowerCase();
     const tactics = fire.suppressionTactics.join(" ").toLowerCase();
@@ -227,7 +226,106 @@ function getWindChangeAlerts() {
   return results;
 }
 
-function generateInsights() {
+// ─── Firebreak engagement analysis ───
+
+function isPointInsidePerimeter(lat, lng, currentFire) {
+  const poly = currentFire.perimeter.geometry.coordinates[0];
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], yi = poly[i][1];
+    const xj = poly[j][0], yj = poly[j][1];
+    const intersect = ((yi > lat) !== (yj > lat)) &&
+      (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function getFirebreakAnalysis(firebreaks, fireFront, wind, currentFire) {
+  const analysis = [];
+  for (const fb of firebreaks) {
+    const coords = fb.geometry.geometry.coordinates;
+    const nearest = getNearestPointOnLine(coords, fireFront.lat, fireFront.lng);
+    const inPath = isInFirePath(coords, fireFront, wind.direction);
+
+    let engagedCount = 0;
+    for (const c of coords) {
+      if (isPointInsidePerimeter(c[1], c[0], currentFire)) engagedCount++;
+    }
+    const engagedRatio = engagedCount / coords.length;
+
+    let status;
+    if (engagedRatio > 0.3) {
+      status = "engaged";
+    } else if (inPath && nearest.distance < 3) {
+      status = "threatened";
+    } else {
+      status = "safe";
+    }
+
+    const isGoodCondition = fb.condition === "Good" || fb.condition.includes("reduced");
+    const isWide = fb.width >= 100;
+    let holdLikelihood;
+    if (isGoodCondition && isWide) holdLikelihood = "high";
+    else if (isGoodCondition || isWide) holdLikelihood = "moderate";
+    else holdLikelihood = "low";
+
+    const midIdx = Math.floor(coords.length / 2);
+    const mid = coords[midIdx];
+
+    analysis.push({
+      ...fb,
+      status,
+      engagedRatio,
+      holdLikelihood,
+      nearestDist: nearest.distance,
+      hours: estimateArrivalHours(nearest.distance),
+      isGoodCondition,
+      badgeLat: mid[1],
+      badgeLng: mid[0],
+    });
+  }
+  return analysis;
+}
+
+// ─── Downed powerline risk analysis ───
+
+function getDownedLineRisks(powerLines, fireFront, wind, currentFire) {
+  const risks = [];
+  for (const pl of powerLines) {
+    const coords = pl.geometry.geometry.coordinates;
+    const inPath = isInFirePath(coords, fireFront, wind.direction);
+    if (!inPath) continue;
+
+    const downedSegments = [];
+    for (let i = 0; i < coords.length; i++) {
+      if (isPointInsidePerimeter(coords[i][1], coords[i][0], currentFire)) {
+        downedSegments.push(coords[i]);
+      }
+    }
+    const isLikelyDowned = downedSegments.length > 0;
+
+    const isHighVoltage = pl.voltage.includes("115") || pl.voltage.includes("230") || pl.voltage.includes("500");
+    const nearest = getNearestPointOnLine(coords, fireFront.lat, fireFront.lng);
+    const midIdx = Math.floor(coords.length / 2);
+    const mid = coords[midIdx];
+
+    risks.push({
+      ...pl,
+      isLikelyDowned,
+      downedSegments,
+      isHighVoltage,
+      nearestDist: nearest.distance,
+      hours: estimateArrivalHours(nearest.distance),
+      riskLat: mid[1],
+      riskLng: mid[0],
+      dangerRadiusMiles: isHighVoltage ? 0.15 : 0.05,
+    });
+  }
+  return risks;
+}
+
+function generateInsights(communities, fireFront, wind, windChangeAlerts, fireScarAlerts, powerLines, elevationPoints, firebreakAnalysis, downedLineRisks) {
   const insights = [];
   const commDistances = communities
     .map((c) => ({ ...c, distance: distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng), hours: estimateArrivalHours(distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng)) }))
@@ -241,13 +339,13 @@ function generateInsights() {
     insights.push({ id: "evac-critical", urgency: "critical", title: `Verify ${evacOrder.name} evacuation`, summary: `${accessNote}${evacOrder.distance.toFixed(1)} mi from fire (~${evacOrder.hours.toFixed(0)}h). Pop. ${evacOrder.population.toLocaleString()}.`, lat: evacOrder.lat, lng: evacOrder.lng });
   }
 
-  // 1b. Single-access community at risk (even if only Warning)
+  // 1b. Single-access community at risk
   const singleAccessAtRisk = commDistances.find((c) => c.accessRoads.length === 1 && c.distance < 8 && c !== evacOrder);
   if (singleAccessAtRisk) {
     insights.push({ id: "single-access-risk", urgency: "critical", title: `${singleAccessAtRisk.name} — single road out`, summary: `Only exit: ${singleAccessAtRisk.accessRoads[0]}. ${singleAccessAtRisk.distance.toFixed(1)} mi from fire (~${singleAccessAtRisk.hours.toFixed(0)}h). Upgrade to evac order early.`, lat: singleAccessAtRisk.lat, lng: singleAccessAtRisk.lng });
   }
 
-  // 2. Wind surge alert (highest priority weather event)
+  // 2. Wind surge alert
   const windSurge = windChangeAlerts.find((a) => a.type === "surge");
   if (windSurge) {
     insights.push({ id: windSurge.id, urgency: "critical", title: `Wind surge at ${windSurge.time}`, summary: windSurge.summary, lat: fireFront.lat, lng: fireFront.lng });
@@ -259,46 +357,58 @@ function generateInsights() {
     insights.push({ id: scarWithEscalation.id, urgency: "warning", title: `Fire trending into ${scarWithEscalation.fire.name} scar`, summary: `${scarWithEscalation.distance.toFixed(1)} mi. In ${scarWithEscalation.fire.year}: ${scarWithEscalation.resourceNote}`, lat: scarWithEscalation.centroid.lat, lng: scarWithEscalation.centroid.lng });
   }
 
-  // 4. Power line in fire path
-  for (const pl of powerLines) {
-    if (insights.length >= 4) break;
-    if (isInFirePath(pl.geometry.geometry.coordinates, fireFront, wind.direction)) {
-      const nearest = getNearestPointOnLine(pl.geometry.geometry.coordinates, fireFront.lat, fireFront.lng);
-      const midIdx = Math.floor(pl.geometry.geometry.coordinates.length / 2);
-      const mid = pl.geometry.geometry.coordinates[midIdx];
-      insights.push({ id: `powerline-${pl.name}`, urgency: "critical", title: `${pl.voltage} line in fire path`, summary: `${nearest.distance.toFixed(1)} mi from front (~${estimateArrivalHours(nearest.distance).toFixed(0)}h). Contact ${pl.operator} to de-energize.`, lat: mid[1], lng: mid[0] });
-      break;
+  // 4. Firebreak engagement
+  const engagedBreaks = firebreakAnalysis.filter((fb) => fb.status === "engaged");
+  for (const fb of engagedBreaks) {
+    if (insights.length >= 6) break;
+    if (fb.holdLikelihood === "low") {
+      insights.push({ id: `fb-failing-${fb.name}`, urgency: "critical", title: `${fb.name} — may not hold`, summary: `${fb.width}ft wide, ${fb.condition.toLowerCase()}. Fire is testing this line. Reinforce or establish fallback.`, lat: fb.badgeLat, lng: fb.badgeLng });
+    } else {
+      insights.push({ id: `fb-holding-${fb.name}`, urgency: "warning", title: `${fb.name} — fire engaged`, summary: `${fb.width}ft wide, condition ${fb.condition.toLowerCase()}. ${fb.holdLikelihood === "high" ? "Strong hold expected" : "Monitor closely"}.`, lat: fb.badgeLat, lng: fb.badgeLng });
     }
   }
 
-  // 5. Uphill slope
-  if (insights.length < 4) {
-    const uphill = getUphillAlert();
+  // 4b. Threatened firebreaks
+  const threatenedBreaks = firebreakAnalysis.filter((fb) => fb.status === "threatened");
+  for (const fb of threatenedBreaks) {
+    if (insights.length >= 6) break;
+    insights.push({ id: `fb-threatened-${fb.name}`, urgency: "warning", title: `${fb.name} — fire approaching`, summary: `${fb.nearestDist.toFixed(1)} mi away (~${fb.hours.toFixed(0)}h). ${fb.width}ft wide, ${fb.condition.toLowerCase()}. Pre-position crews.`, lat: fb.badgeLat, lng: fb.badgeLng });
+  }
+
+  // 5. Downed powerline risk
+  for (const risk of downedLineRisks) {
+    if (insights.length >= 6) break;
+    if (risk.isLikelyDowned) {
+      insights.push({ id: `downed-${risk.name}`, urgency: "critical", title: `${risk.voltage} line likely downed`, summary: `${risk.downedSegments.length} segment(s) inside fire perimeter. Electrocution & re-ignition hazard. Keep crews ${risk.isHighVoltage ? "100+" : "35+"}ft clear. Contact ${risk.operator}.`, lat: risk.riskLat, lng: risk.riskLng });
+    } else {
+      const nearest = getNearestPointOnLine(risk.geometry.geometry.coordinates, fireFront.lat, fireFront.lng);
+      insights.push({ id: `powerline-${risk.name}`, urgency: "critical", title: `${risk.voltage} line in fire path`, summary: `${nearest.distance.toFixed(1)} mi from front (~${estimateArrivalHours(nearest.distance).toFixed(0)}h). Risk of downed lines & re-ignition. Contact ${risk.operator} to de-energize.`, lat: risk.riskLat, lng: risk.riskLng });
+    }
+  }
+
+  // 6. Uphill slope
+  if (insights.length < 6) {
+    const uphill = getUphillAlert(fireFront, wind, elevationPoints);
     if (uphill) {
       insights.push({ id: "uphill-slope", urgency: "warning", title: "Uphill slope ahead", summary: `+${uphill.gain}ft toward ${uphill.label} (${uphill.elevation}ft), ${uphill.distance.toFixed(1)} mi. Fire will accelerate.`, lat: uphill.lat, lng: uphill.lng });
     }
   }
 
-  // 6. Wind direction shift
-  if (insights.length < 4) {
+  // 7. Wind direction shift
+  if (insights.length < 6) {
     const windShift = windChangeAlerts.find((a) => a.type === "shift");
     if (windShift) {
       insights.push({ id: windShift.id, urgency: "warning", title: `Wind shift at ${windShift.time}`, summary: windShift.summary, lat: fireFront.lat, lng: fireFront.lng });
     }
   }
 
-  return insights.slice(0, 4);
+  return insights.slice(0, 6);
 }
 
-export 
+// ─── Sub-components ───
 
-
-    const midIdx = Math.floor(pl.geometry.geometry.coordinates.length / 2);
-    const mid = pl.geometry.geometry.coordinates[midIdx];
-    return { ...pl, nearestDist: nearest.distance, hours: estimateArrivalHours(nearest.distance), alertLat: mid[1], alertLng: mid[0] };
-  });
-
-
+function SpreadArrows({ spreadSegments }) {
+  const map = useMap();
   const layerRef = useRef(null);
   useEffect(() => {
     if (layerRef.current) map.removeLayer(layerRef.current);
@@ -309,10 +419,8 @@ export
       const weight = seg.category === "fast" ? 4 : seg.category === "moderate" ? 3 : 2;
       const opacity = seg.category === "fast" ? 0.9 : 0.7;
 
-      // Main arrow line
       group.addLayer(L.polyline([seg.start, seg.end], { color, weight, opacity }));
 
-      // Arrowhead
       const dLat = seg.end[0] - seg.start[0];
       const dLng = seg.end[1] - seg.start[1];
       const angle = Math.atan2(dLng, dLat);
@@ -325,7 +433,6 @@ export
         [seg.end[0] + Math.cos(a2) * headLen, seg.end[1] + Math.sin(a2) * headLen],
       ], { color, weight: weight + 1, opacity }));
 
-      // Label on fast segments
       if (seg.category === "fast") {
         const labelIcon = L.divIcon({
           className: "map-alert-icon",
@@ -339,15 +446,16 @@ export
     group.addTo(map);
     layerRef.current = group;
     return () => { if (layerRef.current) map.removeLayer(layerRef.current); };
-  }, [map]);
+  }, [map, spreadSegments]);
   return null;
 }
 
-function WindArrows() {
+function WindArrows({ wind }) {
   const map = useMap();
   const layerRef = useRef(null);
   useEffect(() => {
     if (layerRef.current) map.removeLayer(layerRef.current);
+    const spreadRad = ((wind.direction + 180) * Math.PI) / 180;
     const arrowLayer = L.layerGroup();
     const bounds = map.getBounds();
     const latStep = (bounds.getNorth() - bounds.getSouth()) / 5;
@@ -356,20 +464,19 @@ function WindArrows() {
       for (let j = 1; j < 5; j++) {
         const lat = bounds.getSouth() + latStep * i;
         const lng = bounds.getWest() + lngStep * j;
-        const rad = (wind.direction * Math.PI) / 180;
         const len = 0.008;
-        const endLat = lat + Math.cos(rad) * len;
-        const endLng = lng + Math.sin(rad) * len;
+        const endLat = lat + Math.cos(spreadRad) * len;
+        const endLng = lng + Math.sin(spreadRad) * len;
         arrowLayer.addLayer(L.polyline([[lat, lng], [endLat, endLng]], { color: "#1a73e8", weight: 2, opacity: 0.4 }));
         const headLen = 0.003;
-        const a1 = rad + Math.PI + Math.PI / 6, a2 = rad + Math.PI - Math.PI / 6;
+        const a1 = spreadRad + Math.PI + Math.PI / 6, a2 = spreadRad + Math.PI - Math.PI / 6;
         arrowLayer.addLayer(L.polyline([[endLat + Math.cos(a1) * headLen, endLng + Math.sin(a1) * headLen], [endLat, endLng], [endLat + Math.cos(a2) * headLen, endLng + Math.sin(a2) * headLen]], { color: "#1a73e8", weight: 2, opacity: 0.4 }));
       }
     }
     arrowLayer.addTo(map);
     layerRef.current = arrowLayer;
     return () => { if (layerRef.current) map.removeLayer(layerRef.current); };
-  }, [map]);
+  }, [map, wind]);
   return null;
 }
 
@@ -397,7 +504,6 @@ const waterIcon = L.divIcon({
 // ─── Main Component ───
 
 export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
-  // Extract data from props
   if (!data || !data.firePerimeter || !data.infrastructure || !data.terrain || !data.historicalFires) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#6b7280' }}>Loading map data...</div>;
   }
@@ -414,24 +520,22 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
   const waterResources = data.infrastructure.waterResources;
   const historicalFires = data.historicalFires;
 
+  const fireFront = useMemo(() => getFireFront(currentFire, wind), [currentFire, wind]);
 
-  // Calculate derived data using useMemo
-  const fireFront = useMemo(() => getFireFront(), [currentFire, wind]);
-  
-  const windChangeAlerts = useMemo(() => getWindChangeAlerts(), [wind, windForecast]);
-  
-  const fireScarAlerts = useMemo(() => getFireScarAlerts(), [historicalFires, fireFront, wind]);
-  
-  const spreadSegments = useMemo(() => getSpreadSegments(), [currentFire, wind, elevationPoints]);
-  
-  const cityAlerts = useMemo(() => 
+  const windChangeAlerts = useMemo(() => getWindChangeAlerts(wind, windForecast), [wind, windForecast]);
+
+  const fireScarAlerts = useMemo(() => getFireScarAlerts(historicalFires, fireFront, wind), [historicalFires, fireFront, wind]);
+
+  const spreadSegments = useMemo(() => getSpreadSegments(currentFire, wind, elevationPoints), [currentFire, wind, elevationPoints]);
+
+  const cityAlerts = useMemo(() =>
     communities
-      .map((c) => ({ ...c, distance: distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng), hours: estimateArrivalHours(distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng)), histFires: getHistoricalEvacData(c.name) }))
+      .map((c) => ({ ...c, distance: distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng), hours: estimateArrivalHours(distanceMiles(fireFront.lat, fireFront.lng, c.lat, c.lng)), histFires: getHistoricalEvacData(c.name, historicalFires) }))
       .filter((c) => c.distance < 8)
       .sort((a, b) => a.distance - b.distance),
     [communities, fireFront, historicalFires]
   );
-  
+
   const powerLineAlerts = useMemo(() =>
     powerLines
       .filter((pl) => isInFirePath(pl.geometry.geometry.coordinates, fireFront, wind.direction))
@@ -443,14 +547,17 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
       }),
     [powerLines, fireFront, wind]
   );
-  
-  const uphillData = useMemo(() => getUphillAlert(), [fireFront, wind, elevationPoints]);
-  
-  const aiInsights = useMemo(() => generateInsights(), [
-    communities, fireFront, wind, windChangeAlerts, fireScarAlerts, powerLines, elevationPoints
-  ]);
-  
-  // Notify parent of insights
+
+  const uphillData = useMemo(() => getUphillAlert(fireFront, wind, elevationPoints), [fireFront, wind, elevationPoints]);
+
+  const firebreakData = useMemo(() => getFirebreakAnalysis(firebreaks, fireFront, wind, currentFire), [firebreaks, fireFront, wind, currentFire]);
+
+  const downedLineData = useMemo(() => getDownedLineRisks(powerLines, fireFront, wind, currentFire), [powerLines, fireFront, wind, currentFire]);
+
+  const aiInsights = useMemo(() => generateInsights(
+    communities, fireFront, wind, windChangeAlerts, fireScarAlerts, powerLines, elevationPoints, firebreakData, downedLineData
+  ), [communities, fireFront, wind, windChangeAlerts, fireScarAlerts, powerLines, elevationPoints, firebreakData, downedLineData]);
+
   useEffect(() => {
     if (onInsightsGenerated && aiInsights) {
       onInsightsGenerated(aiInsights);
@@ -469,7 +576,7 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
       <MapContainer center={currentFire.center} zoom={12} style={{ width: "100%", height: "100%" }} zoomControl={false}>
         <MapController mapRef={mapRef} />
         <TileLayer url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png" attribution='&copy; <a href="https://opentopomap.org">OpenTopoMap</a>' maxZoom={17} />
-        <WindArrows />
+        <WindArrows wind={wind} />
 
         {/* Fuel type zones */}
         {layers.fuel && fuelTypes.map((fuel, i) => (
@@ -478,7 +585,7 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
           </GeoJSON>
         ))}
 
-        {/* Historical fire scars — clearly visible burn areas */}
+        {/* Historical fire scars */}
         {layers.historical && historicalFires.map((fire, i) => {
           const coords = fire.perimeter.geometry.coordinates[0];
           const inPath = isPolygonInFirePath(coords, fireFront, wind.direction);
@@ -508,7 +615,7 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
           );
         })}
 
-        {/* Fire scar labels on map */}
+        {/* Fire scar labels */}
         {layers.historical && historicalFires.map((fire, i) => {
           const coords = fire.perimeter.geometry.coordinates[0];
           const cent = polygonCentroid(coords);
@@ -521,7 +628,7 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
           return <Marker key={`scar-label-${i}`} position={[cent.lat, cent.lng]} icon={labelIcon} interactive={false} />;
         })}
 
-        {/* Fire scar resource alert badges — when fire trends toward a scar */}
+        {/* Fire scar resource alert badges */}
         {layers.historical && fireScarAlerts.filter((s) => s.hasEscalation).map((scar, i) => {
           const icon = L.divIcon({
             className: "map-alert-icon",
@@ -542,17 +649,50 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
           </Marker>;
         })}
 
-        {/* Firebreaks */}
-        {layers.firebreaks && firebreaks.map((fb, i) => {
-          const isGood = fb.condition === "Good" || fb.condition.includes("reduced");
+        {/* Firebreaks — styled by engagement status */}
+        {layers.firebreaks && firebreakData.map((fb, i) => {
+          let color, weight, dashArray;
+          if (fb.status === "engaged") {
+            color = fb.holdLikelihood === "low" ? "#dc2626" : fb.holdLikelihood === "moderate" ? "#f59e0b" : "#16a34a";
+            weight = 6;
+            dashArray = undefined;
+          } else if (fb.status === "threatened") {
+            color = "#f59e0b";
+            weight = 5;
+            dashArray = "4 4";
+          } else {
+            color = fb.isGoodCondition ? "#16a34a" : "#ca8a04";
+            weight = 4;
+            dashArray = fb.type.includes("Dozer") ? "8 6" : undefined;
+          }
           return (
-            <GeoJSON key={`fb-${i}`} data={fb.geometry} style={{ color: isGood ? "#16a34a" : "#ca8a04", weight: 4, opacity: 0.8, dashArray: fb.type.includes("Dozer") ? "8 6" : undefined }}>
-              <Popup><div className="popup-header">{fb.name}</div><div className="popup-stat">{fb.width}ft · {fb.condition}</div></Popup>
+            <GeoJSON key={`fb-${i}`} data={fb.geometry} style={{ color, weight, opacity: 0.9, dashArray }}>
+              <Popup>
+                <div className="popup-header">{fb.name}</div>
+                <div className="popup-stat">{fb.width}ft · {fb.condition}</div>
+                {fb.status === "engaged" && <div className="popup-stat" style={{marginTop:4,fontWeight:700,color: fb.holdLikelihood === "low" ? "#dc2626" : "#16a34a"}}>{fb.holdLikelihood === "high" ? "HOLDING — strong containment line" : fb.holdLikelihood === "moderate" ? "ENGAGED — monitor closely" : "AT RISK — may not hold, reinforce"}</div>}
+                {fb.status === "threatened" && <div className="popup-stat" style={{marginTop:4,color:"#d97706"}}>Fire approaching in ~{fb.hours.toFixed(0)}h</div>}
+              </Popup>
             </GeoJSON>
           );
         })}
 
-        {/* Water resources - points only */}
+        {/* Firebreak engagement badges */}
+        {layers.firebreaks && firebreakData.filter((fb) => fb.status !== "safe").map((fb, i) => {
+          const isEngaged = fb.status === "engaged";
+          const badgeClass = fb.holdLikelihood === "low" ? "critical" : isEngaged ? "warning" : "monitor";
+          const label = isEngaged
+            ? (fb.holdLikelihood === "low" ? `⚠ ${fb.name} — MAY NOT HOLD` : fb.holdLikelihood === "high" ? `✓ ${fb.name} HOLDING` : `${fb.name} ENGAGED`)
+            : `${fb.name} — FIRE ${fb.nearestDist.toFixed(1)}mi`;
+          const icon = L.divIcon({
+            className: "map-alert-icon",
+            html: `<div class="map-badge-block map-badge-${badgeClass}">${label}</div>`,
+            iconSize: [0, 0], iconAnchor: [0, 20],
+          });
+          return <Marker key={`fb-badge-${i}`} position={[fb.badgeLat, fb.badgeLng]} icon={icon} />;
+        })}
+
+        {/* Water resources */}
         {layers.water && waterResources.filter((w) => w.lat).map((water, i) => (
           <Marker key={`water-pt-${i}`} position={[water.lat, water.lng]} icon={waterIcon}>
             <Popup><div className="popup-header">{water.name}</div><div className="popup-stat">{water.type}{water.capacity ? ` · ${water.capacity}` : ""}</div>{water.dippable && <div className="popup-stat" style={{fontWeight:600}}>Helicopter dip-capable</div>}</Popup>
@@ -569,18 +709,14 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
         {/* Uphill slope highlight */}
         {uphillData && layers.terrain && (() => {
           const slopeZone = {
-            type: "Feature",
-            properties: {},
-            geometry: {
-              type: "Polygon",
-              coordinates: [[
-                [uphillData.lng - 0.03, uphillData.lat - 0.015],
-                [uphillData.lng + 0.03, uphillData.lat - 0.015],
-                [uphillData.lng + 0.03, uphillData.lat + 0.015],
-                [uphillData.lng - 0.03, uphillData.lat + 0.015],
-                [uphillData.lng - 0.03, uphillData.lat - 0.015],
-              ]],
-            },
+            type: "Feature", properties: {},
+            geometry: { type: "Polygon", coordinates: [[
+              [uphillData.lng - 0.03, uphillData.lat - 0.015],
+              [uphillData.lng + 0.03, uphillData.lat - 0.015],
+              [uphillData.lng + 0.03, uphillData.lat + 0.015],
+              [uphillData.lng - 0.03, uphillData.lat + 0.015],
+              [uphillData.lng - 0.03, uphillData.lat - 0.015],
+            ]] },
           };
           const slopeIcon = L.divIcon({
             className: "map-alert-icon",
@@ -605,17 +741,69 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
           );
         })}
 
-        {/* Power line alert badges */}
-        {layers.powerlines && powerLineAlerts.map((pl, i) => {
+        {/* Downed line danger zones */}
+        {layers.powerlines && downedLineData.filter((r) => r.isLikelyDowned).map((risk, i) => {
+          const buf = risk.isHighVoltage ? 0.002 : 0.0008;
+          return risk.downedSegments.map((seg, j) => {
+            const dangerZone = {
+              type: "Feature", properties: {},
+              geometry: { type: "Polygon", coordinates: [[
+                [seg[0] - buf, seg[1] - buf],
+                [seg[0] + buf, seg[1] - buf],
+                [seg[0] + buf, seg[1] + buf],
+                [seg[0] - buf, seg[1] + buf],
+                [seg[0] - buf, seg[1] - buf],
+              ]] },
+            };
+            return <GeoJSON key={`downed-zone-${i}-${j}`} data={dangerZone} style={{ fillColor: "#fbbf24", fillOpacity: 0.25, color: "#dc2626", weight: 2, dashArray: "4 3" }} />;
+          });
+        })}
+
+        {/* Power line alert badges — enhanced with downed-line info */}
+        {layers.powerlines && downedLineData.map((risk, i) => {
+          const isDowned = risk.isLikelyDowned;
+          const label = isDowned
+            ? `⚡ ${risk.voltage} DOWNED — DANGER ZONE`
+            : `⚡ ${risk.voltage} LINE IN PATH — ${risk.nearestDist.toFixed(1)}mi`;
           const icon = L.divIcon({
             className: "map-alert-icon",
-            html: `<div class="map-badge-block map-badge-critical">&#9889; ${pl.voltage} LINE IN PATH — ${pl.nearestDist.toFixed(1)}mi</div>`,
+            html: `<div class="map-badge-block map-badge-critical">${label}</div>`,
             iconSize: [0, 0], iconAnchor: [0, 30],
           });
-          return <Marker key={`pl-alert-${i}`} position={[pl.alertLat, pl.alertLng]} icon={icon}>
-            <Popup><div className="popup-header">{pl.name}</div><div className="popup-stat">~{pl.hours.toFixed(0)}h to fire contact. Contact {pl.operator}.</div></Popup>
+          return <Marker key={`pl-alert-${i}`} position={[risk.riskLat, risk.riskLng]} icon={icon}>
+            <Popup>
+              <div className="popup-header">{risk.name}</div>
+              {isDowned ? (
+                <div>
+                  <div className="popup-stat" style={{fontWeight:700,color:"#dc2626"}}>LIKELY DOWNED — {risk.downedSegments.length} segment(s) inside fire</div>
+                  <div className="popup-stat" style={{marginTop:4}}>⚠ Electrocution hazard — keep all personnel {risk.isHighVoltage ? "100+" : "35+"}ft clear</div>
+                  <div className="popup-stat" style={{marginTop:2}}>⚠ Downed lines can arc and ignite new spot fires</div>
+                  <div className="popup-stat" style={{marginTop:4,fontWeight:600}}>Contact {risk.operator} to de-energize immediately</div>
+                </div>
+              ) : (
+                <div>
+                  <div className="popup-stat">~{risk.hours.toFixed(0)}h to fire contact</div>
+                  <div className="popup-stat" style={{marginTop:4}}>Risk: lines may fall, causing re-ignition & electrocution hazard</div>
+                  <div className="popup-stat" style={{marginTop:2,fontWeight:600}}>Contact {risk.operator} to de-energize before fire arrival</div>
+                </div>
+              )}
+            </Popup>
           </Marker>;
         })}
+
+        {/* Original power line badges for lines NOT in downedLineData */}
+        {layers.powerlines && powerLineAlerts
+          .filter((pl) => !downedLineData.some((r) => r.name === pl.name))
+          .map((pl, i) => {
+            const icon = L.divIcon({
+              className: "map-alert-icon",
+              html: `<div class="map-badge-block map-badge-critical">&#9889; ${pl.voltage} LINE IN PATH — ${pl.nearestDist.toFixed(1)}mi</div>`,
+              iconSize: [0, 0], iconAnchor: [0, 30],
+            });
+            return <Marker key={`pl-orig-alert-${i}`} position={[pl.alertLat, pl.alertLng]} icon={icon}>
+              <Popup><div className="popup-header">{pl.name}</div><div className="popup-stat">~{pl.hours.toFixed(0)}h to fire contact. Contact {pl.operator}.</div></Popup>
+            </Marker>;
+          })}
 
         {/* City alert badges */}
         {layers.communities && cityAlerts.map((comm, i) => {
@@ -662,8 +850,8 @@ export default function FireMap({ layers, mapRef, data, onInsightsGenerated }) {
           return <Marker key={`label-${i}`} position={[comm.lat, comm.lng]} icon={labelIcon} interactive={false} />;
         })}
 
-        {/* Spread direction arrows — shows WHERE fire is expanding fastest */}
-        <SpreadArrows />
+        {/* Spread direction arrows */}
+        <SpreadArrows spreadSegments={spreadSegments} />
 
         <GeoJSON data={currentFire.activeFront} style={{ color: "#fbbf24", weight: 5, opacity: 0.9 }} />
         <GeoJSON data={currentFire.perimeter} style={{ fillColor: "#ef4444", fillOpacity: 0.3, color: "#dc2626", weight: 3 }}>
